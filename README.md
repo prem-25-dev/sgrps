@@ -61,7 +61,7 @@ npm run playtest     # boots the real game in Chromium and plays it
 | `test:soak` | World streaming pools plateau over 20 km — no leaks |
 | `test:hero` | Character LOD budgets and skin-weight normalisation |
 
-Five more run in a real browser, under `npm run playtest`:
+Six more run in a real browser, under `npm run playtest`:
 
 | Suite | What it proves |
 |---|---|
@@ -70,6 +70,7 @@ Five more run in a real browser, under `npm run playtest`:
 | `test:audio` | All 33 synthesised voices make a sound, and nothing puts NaN on the master bus |
 | `test:touch` | The game is playable with a thumb: tap, and every swipe direction |
 | `test:rebind` | A key rebound in the panel actually drives the character, and the one it replaced stops |
+| `test:hud-contrast` | The HUD clears WCAG contrast over the brightest sky the game paints |
 
 CI runs all of these on every push and pull request
 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).

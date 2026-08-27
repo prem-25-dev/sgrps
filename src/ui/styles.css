@@ -176,15 +176,35 @@ button.small { padding: calc(var(--u) * 0.45) calc(var(--u) * 0.8); font-size: c
   padding: calc(var(--u) * 1); pointer-events: none;
 }
 #hud.active { display: block; }
+
+/* A scrim behind the top HUD.
+   Score, distance and the coin count sit directly on the 3D scene, and
+   measured against what is actually rendered behind them they came in at
+   2.73:1, 1.35:1 and 1.25:1 over a pale sky — well under WCAG's 3:1 and
+   4.5:1. `.hud-score` already carried a text-shadow, which helps the eye but
+   creates no measurable contrast and was not enough on its own. This gives
+   the text a backdrop of its own that fades out before it reads as a bar. */
+#hud::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: calc(var(--u) * 17);
+  /* Eased over a long distance on purpose. The sky is a smooth gradient, so a
+     short fade leaves a visible horizontal band across it — the first version
+     of this scrim read as a dark bar rather than as vignetting. Spread this
+     far it follows the sky's own zenith-to-horizon falloff instead. */
+  background: linear-gradient(to bottom,
+    rgba(4,8,14,0.72) 0%, rgba(4,8,14,0.68) 14%, rgba(4,8,14,0.61) 28%,
+    rgba(4,8,14,0.50) 42%, rgba(4,8,14,0.36) 56%, rgba(4,8,14,0.22) 70%,
+    rgba(4,8,14,0.11) 84%, rgba(4,8,14,0.03) 93%, rgba(4,8,14,0) 100%);
+  pointer-events: none;
+}
 .hud-row { position: absolute; top: calc(var(--u) * 1); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.8); }
 .hud-left { left: calc(var(--u) * 1.2); flex-direction: column; }
 .hud-right { right: calc(var(--u) * 1.2); flex-direction: column; align-items: flex-end; }
 .hud-centre { left: 50%; transform: translateX(-50%); flex-direction: column; align-items: center; }
 
 .hud-score { font-size: calc(var(--u) * 2.3); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 0 2px 12px rgba(0,0,0,0.7); }
-.hud-label { font-size: calc(var(--u) * 0.68); color: var(--muted); letter-spacing: 0.18em; text-transform: uppercase; }
-.hud-distance { font-size: calc(var(--u) * 0.95); color: var(--muted); font-variant-numeric: tabular-nums; }
-.hud-coins { display: flex; align-items: center; gap: calc(var(--u) * 0.4); font-size: calc(var(--u) * 1.5); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--gold); }
+.hud-label { font-size: calc(var(--u) * 0.68); color: var(--text); letter-spacing: 0.18em; text-transform: uppercase; text-shadow: 0 1px 6px rgba(0,0,0,0.85); }
+.hud-distance { font-size: calc(var(--u) * 0.95); color: var(--text); font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px rgba(0,0,0,0.85); }
+.hud-coins { display: flex; align-items: center; gap: calc(var(--u) * 0.4); font-size: calc(var(--u) * 1.5); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--gold); text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
 .coin-dot { width: calc(var(--u) * 0.95); height: calc(var(--u) * 0.95); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffe9a8, #d8901a); box-shadow: 0 0 calc(var(--u)*0.6) rgba(255,180,40,0.6); }
 
 .multiplier {

@@ -26,7 +26,8 @@
     "test:vfx": "esbuild scripts/test-vfx.ts --bundle --platform=node --format=esm --outfile=.tmp/vfx.mjs && node .tmp/vfx.mjs",
     "test:zones": "esbuild scripts/test-zones.ts --bundle --platform=node --format=esm --outfile=.tmp/zones.mjs && node .tmp/zones.mjs",
     "test:controls": "esbuild scripts/test-controls.ts --bundle --platform=node --format=esm --outfile=.tmp/ctl.mjs && node .tmp/ctl.mjs",
-    "test:rebind": "node scripts/test-rebind.mjs"
+    "test:rebind": "node scripts/test-rebind.mjs",
+    "test:hud-contrast": "node scripts/test-hud-contrast.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

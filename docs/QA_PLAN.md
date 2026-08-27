@@ -646,6 +646,69 @@ key, and usually no keyboard at all. Tapping a chip started a rebind that only
 a keyboard could end. A tap anywhere else, or on the listening chip again, now
 abandons it.
 
+## A HUD you could not read
+
+Colour accessibility was audited next, and came back clean: obstacle
+affordance is carried by height and silhouette rather than colour (ground,
+overhead and full-height are geometry), power-ups have deliberately distinct
+shapes, mission cards carry ✓ / ▶ / · glyphs, and the toast tones carry
+different words. Simulating dichromacy on the two toast colours confirms it —
+the good/bad pair falls from ΔE 121 to about 33 under protanopia and
+deuteranopia, a large loss but still an order of magnitude above the ~2.3
+just-noticeable threshold, and redundant with the text either way. No
+colourblind mode was added because there is nothing for one to fix.
+
+Low vision was a different story. Score, distance and the coin count float
+directly on the 3D scene, and measured against the pixels actually rendered
+behind them they came in far under WCAG:
+
+| element | measured | needs |
+|---|---|---|
+| score value | 2.73:1 | 3:1 |
+| SCORE label | 1.32:1 | 4.5:1 |
+| distance | 1.35:1 | 4.5:1 |
+| coin count | 1.25:1 | 3:1 |
+
+`.hud-score` already carried a `text-shadow`, which helps the eye and
+contributes nothing measurable. The fix is a long eased scrim behind the top of
+the HUD plus full-brightness readouts, with hierarchy carried by size and
+weight instead of by dimness — a number the player is meant to read should not
+be the one that fails the contrast check.
+
+### Three instruments, two of them wrong
+
+Worth recording, because the measurement was harder to get right than the fix.
+
+The first version asked the DOM for each element's background. Every reading
+came back comfortable, because the walk found an opaque ancestor *behind the
+canvas* — a backdrop the text does not sit on during play. It reported eight of
+eight passing on a HUD that was genuinely unreadable.
+
+The second did the compositing itself in JavaScript, reading the gradient stops
+and interpolating. It put the scrim at alpha 0.09 where it is 0.72, and would
+have failed a HUD that was perfectly fine. A test that reimplements the
+browser is a test of the reimplementation.
+
+The third asks the renderer what it drew: the scene is replaced by a flat
+sheet of the palest colour any zone paints, the HUD is screenshotted, and the
+image is handed back to the page to be decoded and sampled there. That one
+also had to be corrected once — it first read the foreground off the glyphs,
+but at 8.8px very few pixels reach full coverage, so it judged small text more
+harshly than WCAG, which is defined on the *specified* colour. It now takes
+the specified colour and the measured backdrop.
+
+Two details worth keeping. Overlaying the test sheet does not work: `#ui` sits
+inside `#app`, which is its own stacking context, so a sheet appended to the
+body paints over the interface at any z-index — hiding the canvas and colouring
+`#app` has no such trap. And the palest zone sky, rgb(223,233,242), is the case
+that matters: the first fix passed comfortably against a mid daylight sky and
+still missed 4.5:1 against that one by 4.33 to 4.5.
+
+The scrim was also rebuilt once for looks rather than numbers. The first one
+faded over 91px and left a visible dark band across the sky, because the sky is
+a smooth gradient and anything short reads as an edge. Spread over 220px with
+an eased falloff it follows the sky's own zenith-to-horizon shading instead.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and
