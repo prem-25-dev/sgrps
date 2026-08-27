@@ -40,6 +40,9 @@ jobs:
       - name: Gameplay integration
         run: npm run test:gameplay
 
+      - name: Progression, persistence and difficulty
+        run: npm run test:progression
+
       - name: Tutorial step machine
         run: npm run test:tutorial
 

@@ -34,6 +34,18 @@ rasterisation the simulation runs at a fraction of real time, so a run never
 gets far enough to exercise a magnet, a shield or a train roof. It found three
 bugs on its first run — see "Bugs this suite has caught" below.
 
+### `npm run test:progression` — progression, persistence and difficulty
+50 assertions over the systems that decide what a player keeps between runs.
+Persistence is exercised against a real localStorage implementation rather
+than a mock, covering the cases that actually bite: a corrupt payload, hostile
+field types (a string where a score belongs, a negative run count, NaN, nulls
+inside the achievement list), and a browser that throws on every write.
+
+Also proves every one of the 15 missions and 12 achievements is reachable —
+that no objective depends on a metric the tracker never supplies — and that
+the difficulty curve, its relief-after-a-stumble, its ceiling, and the zone
+schedule all behave.
+
 ### `npm run test:tutorial` — first-run lesson
 Drives the step machine headlessly at a fixed timestep, because the browser
 cannot: under software rendering the simulation runs at roughly a fifth of
