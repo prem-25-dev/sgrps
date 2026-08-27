@@ -453,6 +453,24 @@ so the build kept the healthy bundle and the test "passed" against code that
 was never broken. A green run against a failed build proves nothing, and the
 build output has to be read, not assumed.
 
+### And then it failed in CI, for the reason it documented
+
+The version that shipped stopped the render loop for the sound effects but
+deliberately left it running to measure the score, "while the game is actually
+running". `ScriptProcessor.onaudioprocess` is a **main-thread** callback and is
+starved by the loop exactly as a polling analyser is. It passed locally and
+failed on CI at 1.7 fps, reading `0.00447` off a bus that is genuinely around
+0.15 — the same false silence the file's own header warns about, in the half of
+the test that had not been fixed.
+
+Nothing in the measurement needs the loop: the score is scheduled by its own
+25 ms interval, and the audio graph runs on the audio thread. The loop is now
+stopped before anything is measured.
+
+The test also counts the audio blocks it actually received. A starved
+measurement and a silent bus are different failures, and being told which one
+happened is the difference between a five-minute fix and the hour this cost.
+
 ## Playing with a thumb
 
 Swiping is the primary input on a phone, and it had no coverage. `test:ui-fit`

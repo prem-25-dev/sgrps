@@ -8,11 +8,16 @@
  *
  * Two things make this measurable rather than guesswork:
  *
- * The render loop is stopped first. Under software rasterisation it starves
- * `setTimeout` so badly that a polling analyser reads almost nothing, which is
- * how an earlier version of this measurement concluded that 29 of 33 sounds
- * were silent. They were not; the instrument was. WebAudio runs on its own
- * thread and keeps processing with the loop stopped.
+ * The render loop is stopped before anything is measured. Under software
+ * rasterisation it starves the main thread so badly that a polling analyser
+ * reads almost nothing, which is how an earlier version of this measurement
+ * concluded that 29 of 33 sounds were silent. They were not; the instrument
+ * was. `ScriptProcessor.onaudioprocess` is a main-thread callback and suffers
+ * exactly the same starvation — leaving the loop running for the music
+ * measurement passed locally and then failed in CI at 1.7 fps, reading 0.0045
+ * off a bus that is genuinely around 0.15. Nothing here depends on the loop:
+ * the score is scheduled by its own 25 ms interval and the audio graph runs on
+ * the audio thread.
  *
  * And the tap is a ScriptProcessor rather than an AnalyserNode. An analyser
  * shows a window of the recent past, so a short transient — which most of
@@ -53,7 +58,12 @@ await page.waitForFunction(
   { timeout: 60000 },
 );
 
-// --- The score, measured while the game is actually running ----------------
+// Let the run establish and the score start, then stop the render loop so the
+// measurements below are not starved by it.
+await page.waitForTimeout(1500);
+await page.evaluate(() => { window.game.stop(); });
+
+// --- The score --------------------------------------------------------------
 const music = await page.evaluate(async () => {
   const a = window.game.audio;
   const ctx = a.ctx;
@@ -61,7 +71,9 @@ const music = await page.evaluate(async () => {
   const proc = ctx.createScriptProcessor(4096, 1, 1);
   let peak = 0;
   let nan = 0;
+  let blocks = 0;
   proc.onaudioprocess = (e) => {
+    blocks++;
     const d = e.inputBuffer.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
       const v = d[i];
@@ -74,9 +86,10 @@ const music = await page.evaluate(async () => {
   a.master.connect(proc);
   proc.connect(sink);
   sink.connect(ctx.destination);
-  await new Promise((r) => setTimeout(r, 4000));
+  // The score is sparse and evolving, so it is sampled over several bars.
+  await new Promise((r) => setTimeout(r, 6000));
   a.master.disconnect(proc);
-  return { state: ctx.state, track: a.musicTrack, peak: +peak.toFixed(5), nan };
+  return { state: ctx.state, track: a.musicTrack, peak: +peak.toFixed(5), nan, blocks };
 });
 
 if (music.error) {
@@ -84,16 +97,19 @@ if (music.error) {
 } else {
   check('the audio context is running', music.state === 'running', music.state);
   check('a run plays music', music.track && music.track !== 'none', String(music.track));
+  // Distinguishing a starved measurement from a silent bus matters: this test
+  // once reported 0.0045 on a bus that was genuinely around 0.15, because the
+  // main-thread callback was being starved rather than the audio being quiet.
+  // At 44.1 kHz a 4096-sample block is ~93 ms, so six seconds is ~64 blocks.
+  check('the measurement was not starved of audio blocks',
+    music.blocks >= 30, `${music.blocks} blocks in 6 s`);
   check('the master bus is not silent during a run',
-    music.peak >= MUSIC_FLOOR, `peak ${music.peak}`);
+    music.peak >= MUSIC_FLOOR, `peak ${music.peak} over ${music.blocks} blocks`);
   check('the master bus is free of NaN', music.nan === 0, `${music.nan} NaN samples`);
 }
 
 // --- Every voice in the catalogue ------------------------------------------
 const sfx = await page.evaluate(async ({ floor }) => {
-  // Stop the render loop: it starves setTimeout under software rasterisation,
-  // and the waits below would otherwise take minutes and read nothing.
-  window.game.stop();
   const a = window.game.audio;
   const ctx = a.ctx;
   a.musicBus.gain.value = 0;
