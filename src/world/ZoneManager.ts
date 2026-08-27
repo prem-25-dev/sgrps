@@ -21,11 +21,20 @@ const AMBIENCE_BY_ZONE: Record<string, Partial<Record<AmbienceId, number>>> = {
   ZONE_Neon: { AMB_City: 0.45, AMB_Electrical: 0.45, AMB_Crowd: 0.35 },
 };
 
+/**
+ * How far the ground sits below the running surface. The ballast trapezoid
+ * descends 0.34 m, so this puts the terrain a few centimetres under its base:
+ * enough that the embankment sides stay visible, not so much that the track
+ * looks stilted.
+ */
+const GROUND_DROP = 0.4;
+
 export class LightingRig {
   readonly sun: THREE.DirectionalLight;
   readonly ambient: THREE.HemisphereLight;
   readonly fill: THREE.DirectionalLight;
   readonly sky: THREE.Mesh;
+  readonly ground: THREE.Mesh;
 
   constructor(scene: THREE.Scene) {
     this.sun = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -57,6 +66,9 @@ export class LightingRig {
       uniforms: {
         top: { value: new THREE.Color(0x74a7d8) },
         bottom: { value: new THREE.Color(0xdfe9f2) },
+        // Kept equal to the fog colour so the sky just above the horizon is
+        // the same colour the ground fades to just below it.
+        horizon: { value: new THREE.Color(0xbfd4e6) },
       },
       vertexShader: `
         varying float vH;
@@ -69,10 +81,18 @@ export class LightingRig {
       fragmentShader: `
         uniform vec3 top;
         uniform vec3 bottom;
+        uniform vec3 horizon;
         varying float vH;
         void main() {
           float t = clamp(vH * 0.5 + 0.5, 0.0, 1.0);
-          gl_FragColor = vec4(mix(bottom, top, pow(t, 0.85)), 1.0);
+          vec3 base = mix(bottom, top, pow(t, 0.85));
+          // Aerial perspective. At the horizon the raw gradient is already
+          // halfway to the zenith colour, while the ground has faded all the
+          // way to the fog colour — which left a bright band along the skyline
+          // where the two met. Pulling the sky toward the fog colour as it
+          // approaches the horizon makes the seam disappear.
+          float haze = pow(1.0 - clamp(abs(vH) / 0.30, 0.0, 1.0), 1.4);
+          gl_FragColor = vec4(mix(base, horizon, haze), 1.0);
         }
       `,
       side: THREE.BackSide,
@@ -83,6 +103,27 @@ export class LightingRig {
     this.sky.name = 'ENV_Sky';
     this.sky.frustumCulled = false;
     scene.add(this.sky);
+
+    // Ground plane. One draw call, and it never has to move: the player never
+    // advances in world Z — distance is a scalar and the world is drawn
+    // relative to it — so a plane centred on the origin stays under the camera
+    // for the whole run, however far that run goes.
+    //
+    // It sits just under the base of the ballast trapezoid so the embankment
+    // reads as sitting on terrain rather than hovering over it, and it is wide
+    // enough to reach past the farthest fog distance any zone uses, which is
+    // what keeps its edge from ever being visible.
+    const groundGeo = new THREE.PlaneGeometry(1600, 1600);
+    groundGeo.rotateX(-Math.PI / 2);
+    this.ground = new THREE.Mesh(
+      groundGeo,
+      new THREE.MeshLambertMaterial({ color: 0x6c7a5e }),
+    );
+    this.ground.name = 'ENV_Ground';
+    this.ground.position.y = -GROUND_DROP;
+    this.ground.receiveShadow = true;
+    this.ground.frustumCulled = false;
+    scene.add(this.ground);
   }
 
   setShadows(enabled: boolean): void {
@@ -105,6 +146,7 @@ export class ZoneManager {
   private readonly skyBottom = new THREE.Color();
   private readonly sunColor = new THREE.Color();
   private readonly ambientColor = new THREE.Color();
+  private readonly groundColor = new THREE.Color();
   private readonly sunPosition = new THREE.Vector3();
   private neon = 0;
 
@@ -141,6 +183,7 @@ export class ZoneManager {
     lerpColor(this.skyBottom, a.sky.bottom, b.sky.bottom);
     lerpColor(this.sunColor, a.sun.color, b.sun.color);
     lerpColor(this.ambientColor, a.ambient.color, b.ambient.color);
+    lerpColor(this.groundColor, a.ground, b.ground);
 
     const fog = this.scene.fog as THREE.Fog;
     fog.color.lerp(this.fogColor, smoothing);
@@ -150,6 +193,7 @@ export class ZoneManager {
     const skyMat = this.rig.sky.material as THREE.ShaderMaterial;
     (skyMat.uniforms.top.value as THREE.Color).lerp(this.skyTop, smoothing);
     (skyMat.uniforms.bottom.value as THREE.Color).lerp(this.skyBottom, smoothing);
+    (skyMat.uniforms.horizon.value as THREE.Color).lerp(this.fogColor, smoothing);
 
     this.rig.sun.color.lerp(this.sunColor, smoothing);
     this.rig.sun.intensity += (a.sun.intensity + (b.sun.intensity - a.sun.intensity) * t - this.rig.sun.intensity) * smoothing;
@@ -163,6 +207,12 @@ export class ZoneManager {
     this.rig.ambient.color.lerp(this.ambientColor, smoothing);
     this.rig.ambient.intensity += (a.ambient.intensity + (b.ambient.intensity - a.ambient.intensity) * t - this.rig.ambient.intensity) * smoothing;
     this.rig.ambient.groundColor.lerp(this.fogColor, smoothing * 0.5);
+
+    // The terrain cross-fades with everything else, so a zone change reads as
+    // one continuous move rather than the ground snapping under a blended sky.
+    (this.rig.ground.material as THREE.MeshLambertMaterial).color.lerp(
+      this.groundColor, smoothing,
+    );
 
     // Emissive materials lift as daylight drops, so neon reads at night and
     // does not blow out at midday.

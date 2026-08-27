@@ -25,12 +25,28 @@ page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}\n${err.stac
 console.log(`Loading ${URL} ...`);
 await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
+/**
+ * Wait for the menu camera to finish swinging round to the hero.
+ *
+ * Wall-clock waits are useless here: under software rasterisation the
+ * simulation advances at a fraction of real time, so a fixed pause catches the
+ * camera mid-transition and photographs the back of the hero's head. Every
+ * such shot looked like a framing bug in the game rather than in the harness.
+ */
+async function waitForMenuCamera(page) {
+  await page.waitForFunction(() => {
+    const c = window.game?.camera;
+    return c && c.fov < 46.4 && c.position.z < -2.0;
+  }, { timeout: 120000 }).catch(() => {});
+}
+
 // Wait for boot to reach the main menu.
 await page.waitForFunction(() => {
   const menu = document.getElementById('menu');
   return menu && menu.classList.contains('active');
 }, { timeout: 90000 });
 console.log('Reached main menu.');
+await waitForMenuCamera(page);
 await page.screenshot({ path: `${OUT}/01-menu.png` });
 
 // Probe the scene from inside the page.

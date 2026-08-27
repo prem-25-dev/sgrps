@@ -527,12 +527,18 @@ function buildLodMeshes(
   );
   const sleeveEnd = id.outfit.top === 'tee' ? 1.23 : 0.96;
   for (const side of [1, -1]) {
-    // Cap the sleeve just below the shoulder dome so it reads as a seam
-    // rather than a plate hanging off the joint.
+    // The sleeve has to run over the arm's shoulder dome, not stop under it.
+    // Clipping below the dome left two defects that were obvious the moment
+    // the character was photographed from the front: the dome itself was bare
+    // skin sitting outboard of the shirt, which read as a triangular notch cut
+    // out of the shoulder, and the sleeve's flat top cap stood proud of the
+    // joint as a hard angular plate — together, shoulder pads with a piece
+    // missing. Taking the sleeve to the top of the arm sections covers the
+    // dome and puts the only visible seam at the hem, where a sleeve's seam
+    // belongs.
     const sleeve = clipRings(
       sectionsToRings(armSections(id, side), 0.185 * side, LIMB_PROFILE, scale, 0.016, q.ringDensity),
       sleeveEnd * scale,
-      1.472 * scale,
     );
     if (sleeve.length >= 2) {
       shirtParts.push(sweep(sleeve, { radialSegments: q.limbSegments, capStart: true, capEnd: true }));

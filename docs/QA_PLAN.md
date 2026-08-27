@@ -296,6 +296,41 @@ completes in one step, while the game slides across over 0.17 s, so a witness
 names a decision point near — not at — where the player must act. The replay
 leads lane presses by the transit time for exactly this reason.
 
+## What only looking at the game could catch
+
+None of the 165 assertions can see the game. Three defects survived every one
+of them and were obvious in the first screenshot:
+
+1. **There was no ground.** Decor is placed at y=0 and the only large surface
+   in the scene was the 9.6 m ballast, so every building, tree and parked
+   vehicle hung in mid-air with sky underneath, and the track was a strip in a
+   void. A single 1600 m plane fixes it, and it never needs to move: the
+   player does not advance in world Z, so a plane centred on the origin stays
+   under the camera for the whole run. `ZoneDef` gained a `ground` colour that
+   cross-fades with fog and sky.
+2. **The horizon had a bright seam.** The sky dome's gradient is already
+   halfway to its zenith colour at the horizon, while the ground fades all the
+   way to the fog colour, so the two met in a hard band. The sky shader now
+   pulls toward the fog colour as it approaches the horizon.
+3. **The shoulders had a notch and a spike.** The sleeve was clipped below the
+   arm's shoulder dome, which left the dome as bare skin outboard of the shirt
+   — a triangular hole — and stood the sleeve's flat top cap proud of the
+   joint. Front-on it read as shoulder pads with a piece cut out. The sleeve
+   now runs over the dome, putting the only seam at the hem.
+
+### The screenshot harness was lying too
+
+A fourth "defect" was not one. Early captures showed the menu framing the back
+of the hero's head, half out of frame. The menu camera was correct; the
+capture was taken 0.28 s of *simulated* time after boot, mid-swing, because
+under software rasterisation the simulation advances at a fraction of real
+time and a fixed 3 s wall-clock pause is nowhere near enough. `playtest.mjs`
+and `screenshot.mjs` now wait on the camera having actually settled, so the
+artifacts CI uploads show what a player would see.
+
+That is the same failure as the differential harness's three: a fixed wall of
+wall-clock waiting, in an environment where wall clock means nothing.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

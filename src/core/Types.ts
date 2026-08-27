@@ -152,6 +152,15 @@ export interface ZoneDef {
   /** Distance in metres at which this zone starts being eligible. */
   fromDistance: number;
   fog: { color: number; near: number; far: number };
+  /**
+   * Colour of the ground plane beyond the track.
+   *
+   * Without a ground the world is a strip of ballast in the void, and every
+   * building, tree and parked vehicle — all placed at y=0 — hangs in mid-air
+   * with sky visible underneath. Fog hides the plane's far edge, so it only
+   * ever reads as terrain receding into haze.
+   */
+  ground: number;
   sky: { top: number; bottom: number };
   sun: { color: number; intensity: number; position: [number, number, number] };
   ambient: { color: number; intensity: number };
