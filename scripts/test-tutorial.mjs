@@ -26,9 +26,32 @@ const bootToMenu = async () => {
   await page.waitForTimeout(800);
 };
 
+/**
+ * Wipes the profile.
+ *
+ * `localStorage.clear()` alone is not enough: the game flushes its save on
+ * `beforeunload`, so navigating afterwards writes the in-memory data straight
+ * back and the next boot still sees the old run count. Resetting through the
+ * SaveManager clears memory and storage together, so the unload flush writes
+ * defaults.
+ */
+const wipeProfile = () => page.evaluate(() => window.game.save.reset());
+
+/** Wipes the profile and starts a run, which must be a tutorial run. */
+async function startFreshTutorial(label) {
+  await wipeProfile();
+  await bootToMenu();
+  await page.$eval('#menu button.primary', (el) => el.click());
+  await page.waitForTimeout(1600);
+  const state = await page.evaluate(() => window.game.state.state);
+  check(label, state === 'TUTORIAL', `got ${state}`);
+  return state === 'TUTORIAL';
+}
+
 // --- First run: no history, so the tutorial should take over ---------------
 await page.goto(URL, { waitUntil: 'domcontentloaded' });
-await page.evaluate(() => localStorage.clear());
+await page.waitForFunction(() => !!window.game, { timeout: 90000 });
+await wipeProfile();
 await bootToMenu();
 
 await page.$eval('#menu button.primary', (el) => el.click());
@@ -75,17 +98,14 @@ await page.screenshot({ path: `${OUT}/tutorial-2.png` });
 check('the prompt advances during a real run', seen.size >= 2,
   `saw ${seen.size}: ${[...seen].join(' | ')}`);
 
-// Mashing every key for a minute can end the run. If it did, start a fresh
-// lesson so the pause checks below have a tutorial to act on.
-const stillTeaching = await page.evaluate(() => window.game.state.state === 'TUTORIAL');
-if (!stillTeaching) {
-  await page.evaluate(() => localStorage.clear());
-  await bootToMenu();
-  await page.$eval('#menu button.primary', (el) => el.click());
-  await page.waitForTimeout(1600);
-  const restarted = await page.evaluate(() => window.game.state.state);
-  check('a fresh profile re-enters the tutorial after a death', restarted === 'TUTORIAL', `got ${restarted}`);
-}
+// End this run and wipe, so the pause checks below always start from a known
+// tutorial rather than depending on whether the player survived the mashing.
+// This also covers the wipe path itself, which is where a stale profile bug
+// would show up: the game flushes its save on unload, so a wipe that only
+// cleared storage would leave the run count behind and skip the lesson.
+await page.evaluate(() => window.game.player.kill('front', 'test-harness'));
+await page.waitForTimeout(2200);
+await startFreshTutorial('a wiped profile is taught again after a completed run');
 
 // Pausing mid-lesson must resume back into the tutorial, not skip it.
 await page.keyboard.press('Escape');
