@@ -246,32 +246,55 @@ segments, unchanged.
 `test:fairness` now pins it with an assertion that fails on the old model: the
 witness jump must clear the obstacle at its **leading edge**, not its centre.
 
-### What is still open, and why it is reported rather than hidden
+### Three harness faults that each impersonated a solver bug
 
-The differential test demands something strictly stronger than the fairness
-promise. The promise is that *a* route exists; this asks that the route the
-solver **names** is directly flyable. 32 of 416 currently are not, in three
-reproducible clusters:
+The first useful output of this test was a lie, three times over, and each one
+looked exactly like the fairness engine routing a player into a wall. They are
+recorded because the lesson outlived them: a differential test you have not
+audited is worse than no test, because it manufactures confident false
+findings.
 
-- **Tall standable roofs** (`OBS_Container_01`, `OBS_TrainCar_01`). Clearing a
-  2.55 m roof against a 2.70 m jump peak leaves a 1.7 m window of take-off
-  positions at 12 m/s. The witness frequently names a point outside it.
-- **Full-height lane dodges** (`OBS_FencePanel_01`). The solver's state moves
-  to the new lane inside one 0.5 m step; the game slides across over 0.17 s —
-  5.3 m at top speed. The replay leads the press by the transit time, which
-  fixes most but not all of these.
-- **One top-speed slide** (`OBS_Pipe_01` at 31 m/s).
+1. **Replaying from the wrong entry lane — 188 false divergences.** The solver
+   is asked to enter from any lane and picks whichever its route needs; the
+   replay always started the player in the middle. Most "failures" were the
+   player walking into an obstacle the route had simply gone around.
+2. **Never sending keyup.** `InputManager` drops a repeat while an action is
+   still held, so every press after the first in a given direction vanished.
+   Routes with two lane changes appeared to ignore the second one entirely.
+3. **A leaked held key across the shared rig — 32 false divergences.** Sharing
+   one rig between flights is what makes the sweep fast, but `player.reset()`
+   does not clear `InputManager`'s held set. A flight whose jump apex fell past
+   the end of the segment left `jump` held, so the *next* flight's jump was
+   dropped. Every affected case sat at exactly one speed, which was the clue:
+   at 31 m/s the apex is 9.3 m away and lands outside the segment almost every
+   time.
 
-A further 73 routes fly fine once the take-off is moved, with windows over 20
-frames wide — the same grid artefact in its mild form.
+Fault 3 was briefly written up here as three solver clusters, complete with a
+lane-transit explanation and a divergence budget of 32. That was wrong. The
+budget is now **0** and holds: every route the solver names can be flown
+through the real physics.
 
-None of this shows those segments kill the player: the player is not obliged
-to follow the solver's route, and the generator's own guarantee is unaffected
-(0 unsurvivable segments across 288 km still holds). But each is a place where
-the solver's own answer is not directly playable, so the count is a **ratchet
-in CI that may only go down**, rather than a number rounded away. Closing it
-properly means giving the solver a lane-transit state, which is a real change
-to the state space and is not worth rushing.
+A fourth near-miss belongs with them. Fixing fault 2 by tapping the key broke
+jumps instead, because the game gives variable jump height by running the
+ascent at `cutMultiplier` gravity once the key is released — an instant tap
+peaks at 1.29 m rather than 2.70 m. Lane keys must be released; jump must be
+held to the apex, which is also the arc the solver proves against.
+
+### What the test still reports rather than gates
+
+Two witness routes survive only inside a window narrower than one frame. Both
+are `SEG_Spiral_01`, whose single obstacle is a container in lane 0 with lanes
+1 and 2 completely empty: the witness enters in lane 0 and mounts the 2.55 m
+roof against a 2.70 m jump peak, when running past costs nothing. That is a
+statement about the route the solver chose, not about whether the segment is
+fair — the player is never obliged to follow it. It is kept as a budget of 2
+so it cannot quietly grow.
+
+A further 65 routes fly comfortably once the take-off is moved, with windows
+over 20 frames wide. The solver plans on a 0.5 m grid on which a lane change
+completes in one step, while the game slides across over 0.17 s, so a witness
+names a decision point near — not at — where the player must act. The replay
+leads lane presses by the transit time for exactly this reason.
 
 ## Known limitations
 
