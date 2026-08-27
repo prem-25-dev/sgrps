@@ -49,6 +49,9 @@ jobs:
       - name: Animation quality
         run: npm run test:animation
 
+      - name: Visual effects
+        run: npm run test:vfx
+
       - name: Tutorial step machine
         run: npm run test:tutorial
 

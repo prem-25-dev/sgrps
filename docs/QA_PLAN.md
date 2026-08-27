@@ -491,6 +491,34 @@ the swipe threshold does none of those. Everything passed first time — no bug
 here — but inverting the horizontal mapping makes it report `lane 1 -> 2` on a
 left swipe, so it is a real gate rather than a formality.
 
+## Effects, which nothing had ever watched
+
+23 presets share one particle pool, and no other suite touched them. A preset
+whose count fell to zero, or a switch case that stopped matching after a
+rename, would look exactly like one that works: no error, no warning, just a
+game that had quietly lost its sparkle. `test:vfx` plays every effect and
+counts particles.
+
+It runs headless in Node rather than a browser — the particle system is plain
+`BufferGeometry` and needs no renderer, and the browser job is long enough
+already.
+
+Nothing was broken, but writing it turned up an inconsistency worth recording.
+`VFX_SpeedLines` is in `VFXId` and has **no case in `play()` at all**: speed
+lines are a dedicated mesh whose opacity tracks the player's speed from
+`update`, so playing it is a silent no-op for any caller who tries. Rather than
+excluding it and forgetting it, the test names it as a continuous effect and
+asserts it on its own terms — opacity rises above 0.05 at full speed and falls
+back by more than 5x when slow.
+
+The rest of the suite covers what the soak cannot see: particles live in typed
+arrays rather than the scene graph, so an exhausted or leaking pool is
+invisible to an object count. Hammering all 23 presets for 400 frames peaks at
+1,400 of 4,000 and drains to exactly zero.
+
+Verified by sabotage: silencing `VFX_Debris` and `VFX_Steam` makes the test
+name both.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

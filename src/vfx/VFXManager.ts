@@ -10,14 +10,25 @@ import { ParticleSystem } from './ParticleSystem';
  * lines) that need geometry rather than points.
  */
 
-export type VFXId =
-  | 'VFX_CoinPickup' | 'VFX_CoinTrail' | 'VFX_CoinAttract'
-  | 'VFX_JumpDust' | 'VFX_LandDust' | 'VFX_HardLandDust' | 'VFX_FootstepDust'
-  | 'VFX_SlideSparks' | 'VFX_SpeedLines' | 'VFX_Boost'
-  | 'VFX_ShieldImpact' | 'VFX_ShieldPickup' | 'VFX_MagnetField'
-  | 'VFX_PowerUpPickup' | 'VFX_NearMiss' | 'VFX_Collision'
-  | 'VFX_TrainSparks' | 'VFX_ElectricSpark' | 'VFX_Smoke' | 'VFX_Steam'
-  | 'VFX_Debris' | 'VFX_NeonGlow' | 'VFX_MissionComplete';
+/**
+ * Every effect the game can play.
+ *
+ * A list rather than a bare union so the catalogue can be enumerated: the
+ * only way an effect that quietly stopped emitting would be noticed is by
+ * playing each one and counting particles. `VFXId` is derived from it, so
+ * adding an effect to the type is the same act as adding it to the coverage.
+ */
+export const VFX_IDS = [
+  'VFX_CoinPickup', 'VFX_CoinTrail', 'VFX_CoinAttract',
+  'VFX_JumpDust', 'VFX_LandDust', 'VFX_HardLandDust', 'VFX_FootstepDust',
+  'VFX_SlideSparks', 'VFX_SpeedLines', 'VFX_Boost',
+  'VFX_ShieldImpact', 'VFX_ShieldPickup', 'VFX_MagnetField',
+  'VFX_PowerUpPickup', 'VFX_NearMiss', 'VFX_Collision',
+  'VFX_TrainSparks', 'VFX_ElectricSpark', 'VFX_Smoke', 'VFX_Steam',
+  'VFX_Debris', 'VFX_NeonGlow', 'VFX_MissionComplete',
+] as const;
+
+export type VFXId = typeof VFX_IDS[number];
 
 export class VFXManager {
   readonly particles = new ParticleSystem();
