@@ -365,6 +365,61 @@ a wait genuinely needed longer than 30 s, at which point the failure looked
 like a game bug rather than a harness one. All of them now pass an explicit
 `null` argument.
 
+## What a second code review caught
+
+A review of everything since the last one found six issues, four of them in
+the very tests written to catch bugs.
+
+**The sky was clipped away on two of the three quality profiles.** `camera.far`
+is scaled by the quality profile — 420 m on high, 378 on medium, 315 on low —
+while the sky dome is a fixed 400 m sphere at the origin. On medium and low
+most of it fell outside the far plane and rendered as a huge black void
+overhead. The dome is now scaled to sit inside the frustum, and the renderer
+clears to the fog colour so anything else that gets clipped blends into the
+haze rather than punching a hole in it. This one predated the ground plane but
+the new ground made it far more conspicuous.
+
+**The horizon fix had not worked.** The sky is a custom `ShaderMaterial`, which
+gets no output colour-space conversion unless it asks for one, so `THREE.Color`
+uniforms — held in the linear working space — were published as if they were
+already sRGB. Sampling pixels: sky at `132,167,202` against ground at
+`191,212,230`, a hard 60-level step in a single row, which is precisely the
+seam the change had been written to remove. It was computing the right colour
+and displaying the wrong one. With `#include <colorspace_fragment>` the sky
+now reads `191,212,230` right up to the ground's fogged edge.
+
+**The differential test flew moving hazards as if they were static.** The
+replay pinned `driftZ` and `driftX` to zero, so the solver's drift sweep — the
+part of the model that exists solely for those obstacles — was never
+differentially tested. The replay now moves them exactly as `TrackManager`
+does. Still zero divergences, which makes the claim mean more than it did.
+
+**It could also fabricate solver failures.** Past `MAX_EXPLAINED` the fine
+sweep returns a `-1` sentinel, which fell into the `widest <= 0` branch and was
+filed as a hard divergence against a budget of zero. Unexplained failures are
+now their own bucket with their own assertion.
+
+**And it had an unbudgeted bucket.** The 65 routes that fly only once their
+take-off is moved had no assertion at all; they now have a budget of 80.
+
+**`test:ui-fit` could pass without testing anything.** A hidden screen measures
+as all zeros, and zeros satisfy every bound it checks, so any panel that failed
+to open passed silently — exactly the case the test exists for. It now asserts
+the button it presses exists, that the screen actually opened, and that the
+panel has a non-zero size before measuring it.
+
+Four of those six are faults in test code. That keeps being the pattern: the
+instruments need auditing at least as much as the thing they measure.
+
+The colour-space fix is deliberately **not** guarded by a test. Two attempts at
+one — a seam-continuity scan down a column, then a comparison of the sky just
+above the skyline against `scene.fog` — both kept catching real geometry
+(buildings, the ballast edge) instead of the seam, and locating the skyline
+robustly across zones turned into more machinery than the bug warrants. A
+flaky gate is worse than none, so the fix rests on the one-off measurement
+recorded above and this note, rather than on a check that would cry wolf.
+
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

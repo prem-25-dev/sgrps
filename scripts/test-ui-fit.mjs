@@ -79,7 +79,12 @@ for (const vp of VIEWPORTS.filter((v) => !ONLY || v.label === ONLY)) {
       const screen = document.getElementById(s);
       const panel = screen?.querySelector('.panel');
       if (!panel) return { missing: true };
+      // A hidden screen measures as all zeros, and zeros satisfy every bound
+      // below — so without this the whole test passes vacuously whenever a
+      // panel fails to open, which is exactly when it is most needed.
+      if (!screen.classList.contains('active')) return { notOpen: true };
       const pr = panel.getBoundingClientRect();
+      if (pr.width < 1 || pr.height < 1) return { collapsed: true };
       const offenders = [...screen.querySelectorAll('button')]
         .map((b) => ({ text: b.textContent.trim(), r: b.getBoundingClientRect() }))
         .filter(({ r }) => r.bottom > innerHeight + 1 || r.top < -1
@@ -93,6 +98,9 @@ for (const vp of VIEWPORTS.filter((v) => !ONLY || v.label === ONLY)) {
     }, id);
 
     if (report.missing) { check(`${vp.label}: ${id} has a panel`, false); return; }
+    if (report.notOpen) { check(`${vp.label}: ${id} actually opened`, false); return; }
+    if (report.collapsed) { check(`${vp.label}: the ${id} panel has a size`, false); return; }
+    check(`${vp.label}: ${id} actually opened`, true);
     check(`${vp.label}: every ${id} button is on screen`,
       report.offenders.length === 0, report.offenders.join('; '));
     check(`${vp.label}: the ${id} panel fits the viewport`,
@@ -102,7 +110,8 @@ for (const vp of VIEWPORTS.filter((v) => !ONLY || v.label === ONLY)) {
   // The menu panels open from their own buttons, exactly as a player opens them.
   for (const label of ['Missions', 'Achievements', 'Settings']) {
     const id = label.toLowerCase();
-    await press(page, '#menu button', label);
+    const opened = await press(page, '#menu button', label);
+    check(`${vp.label}: the ${label} button exists`, opened === true);
     await settle(id);
     await measure(id);
     await press(page, `#${id} button`, 'Back');
@@ -115,7 +124,7 @@ for (const vp of VIEWPORTS.filter((v) => !ONLY || v.label === ONLY)) {
 
   // Game over is only reachable by dying, so die on purpose rather than
   // waiting: under software rasterisation a natural run takes minutes.
-  await press(page, '#menu button.primary');
+  check(`${vp.label}: the Play button exists`, (await press(page, '#menu button.primary')) === true);
   await page.waitForFunction(
     () => ['PLAYING', 'TUTORIAL'].includes(window.game?.state?.state),
     null,

@@ -270,6 +270,7 @@ function fly(
   const rig_ = rig();
   const s = rig_.player.state;
   let runTime = 0;
+  let driftTime = 0;
 
   /** One frame at the pinned speed. */
   const stepFrame = () => {
@@ -301,7 +302,7 @@ function fly(
       const def: ObstacleDef = o.def;
       rig_.obstacles.push({
         def, z: base + (o.z - plan.startZ), lane: o.lane, x: laneToX(o.lane), baseY: 0,
-        object: new THREE.Object3D(), driftZ: 0, driftX: 0,
+        object: new THREE.Object3D(), driftZ: o.driftZ, driftX: o.driftX,
         poolKey: `${def.id}|0`, hit: false, nearMissed: false, passed: false,
       });
     }
@@ -320,6 +321,18 @@ function fly(
         const e = schedule[next];
         if (e.up) rig_.up(e.code); else rig_.down(e.code);
         next++;
+      }
+      // Moving hazards are moved by TrackManager in the real game, so the
+      // replay has to move them too. Flying them static meant the solver's
+      // drift sweep — the part of the model that exists purely for these
+      // obstacles — was never differentially tested at all.
+      driftTime += DT;
+      for (const o of rig_.obstacles) {
+        if (o.driftZ !== 0) o.z += o.driftZ * DT;
+        if (o.driftX !== 0) {
+          const half = (CFG.laneWidth - o.def.width) / 2;
+          o.x = laneToX(o.lane) + Math.sin(driftTime * o.driftX) * Math.max(0, half);
+        }
       }
       stepFrame();
 
@@ -369,6 +382,12 @@ const unhittable: Divergence[] = [];
  * decision a little away from where the player has to make it.
  */
 const offsetRoutes: Divergence[] = [];
+/**
+ * Failures the fine sweep never got to, because the explanation budget ran
+ * out. These are unknown, not proven bad: filing them as hard divergences
+ * would fabricate solver failures the moment the budget was exceeded.
+ */
+const unexplained: Divergence[] = [];
 const bandWidth: number[] = [];
 let flown = 0;
 let noRoute = 0;
@@ -423,7 +442,8 @@ for (const seed of SEEDS) {
             + `${result.route.filter((x) => x.action === 'slide').length}S/`
             + `${result.route.filter((x) => x.toLane !== x.lane).length}L`,
         };
-        if (widest <= 0) divergences.push(row);
+        if (widest < 0) unexplained.push(row);
+        else if (widest === 0) divergences.push(row);
         else if (widest < row.frame) unhittable.push(row);
         else offsetRoutes.push(row);
       }
@@ -489,6 +509,15 @@ const DIVERGENCE_BUDGET = 0;
  */
 const SUB_FRAME_BUDGET = 2;
 
+/**
+ * Routes that fly only once their take-off is moved off the point the solver
+ * named. Harmless for fairness — the window is many frames wide — but it
+ * measures how far the solver's 0.5 m grid, on which a lane change completes
+ * in a single step, sits from where the player actually has to act. Budgeted
+ * so it cannot drift upwards unnoticed.
+ */
+const OFFSET_BUDGET = 80;
+
 if (process.env.DIFF_BREAKDOWN) {
   const by = new Map<string, number>();
   for (const d of divergences) {
@@ -503,6 +532,11 @@ console.log('');
 check('the sweep actually flew routes', flown > 100, `only ${flown}`);
 check('the typical solver route flies untouched at its stated timing',
   median >= 0.99, `median ${(median * 100).toFixed(0)}%`);
+check('every failure was explained by the fine sweep',
+  unexplained.length === 0, `${unexplained.length} unexplained (raise MAX_EXPLAINED)`);
+check(`routes needing a moved take-off stay within budget (${OFFSET_BUDGET})`,
+  offsetRoutes.length <= OFFSET_BUDGET,
+  `${offsetRoutes.length} of ${flown}, budget ${OFFSET_BUDGET}`);
 check(`witness routes with a sub-frame window stay within budget (${SUB_FRAME_BUDGET})`,
   unhittable.length <= SUB_FRAME_BUDGET,
   `${unhittable.length} of ${flown} need a sub-frame window`);

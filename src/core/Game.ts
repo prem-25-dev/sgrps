@@ -114,7 +114,7 @@ export class Game {
     this.track = new TrackManager(this.generator, this.collision, this.coins, this.powerUps);
     this.cameraController = new CameraController(this.camera);
     this.lighting = new LightingRig(this.scene);
-    this.zones = new ZoneManager(this.scene, this.lighting, this.audio);
+    this.zones = new ZoneManager(this.scene, this.lighting, this.audio, this.renderer);
 
     this.scene.add(this.track.root);
     this.scene.add(this.coins.mesh);
@@ -380,6 +380,7 @@ export class Game {
 
     this.camera.far = CFG.camera.far * profile.viewScale;
     this.camera.updateProjectionMatrix();
+    this.lighting.fitTo(this.camera.far);
     this.animator?.setFootIk(!s.reducedMotion || s.quality !== 'low');
   }
 

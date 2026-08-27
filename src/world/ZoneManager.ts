@@ -93,6 +93,14 @@ export class LightingRig {
           // approaches the horizon makes the seam disappear.
           float haze = pow(1.0 - clamp(abs(vH) / 0.30, 0.0, 1.0), 1.4);
           gl_FragColor = vec4(mix(base, horizon, haze), 1.0);
+          // THREE.Color holds these in the linear working space, and a custom
+          // ShaderMaterial gets no output conversion unless it asks for one.
+          // Writing them raw published linear values as if they were sRGB, so
+          // the sky rendered ~60 levels darker than the same colour on the
+          // ground: the horizon blend above was computing the right answer and
+          // then displaying the wrong one, leaving the exact hard seam it was
+          // written to remove.
+          #include <colorspace_fragment>
         }
       `,
       side: THREE.BackSide,
@@ -126,6 +134,22 @@ export class LightingRig {
     scene.add(this.ground);
   }
 
+  /**
+   * Keeps the sky dome inside the camera's far plane.
+   *
+   * The dome is a fixed 400 m sphere, but `camera.far` is scaled by the
+   * quality profile — 378 m on medium and 315 m on low. Anything past the far
+   * plane is clipped, so on those profiles most of the dome simply vanished
+   * and the sky rendered as a large black void. Scaling it to sit comfortably
+   * inside the frustum costs nothing: it is a background gradient, so its
+   * actual radius is irrelevant as long as it encloses the camera and stays
+   * behind everything else.
+   */
+  fitTo(far: number): void {
+    const radius = (this.sky.geometry as THREE.SphereGeometry).parameters.radius;
+    this.sky.scale.setScalar(Math.max(0.05, (far * 0.85) / radius));
+  }
+
   setShadows(enabled: boolean): void {
     this.sun.castShadow = enabled;
   }
@@ -154,6 +178,7 @@ export class ZoneManager {
     private readonly scene: THREE.Scene,
     private readonly rig: LightingRig,
     private readonly audio: AudioManager,
+    private readonly renderer?: THREE.WebGLRenderer,
   ) {
     this.scene.fog = new THREE.Fog(0xbfd4e6, 60, 320);
     this.apply(ZONES[0], ZONES[0], 0, 1);
@@ -187,6 +212,11 @@ export class ZoneManager {
 
     const fog = this.scene.fog as THREE.Fog;
     fog.color.lerp(this.fogColor, smoothing);
+    // Clearing to the fog colour rather than black means anything that does
+    // fall outside the far plane — on a low quality profile the far plane can
+    // sit inside a zone's fog distance — blends into the haze instead of
+    // punching a hole in it.
+    this.renderer?.setClearColor(fog.color, 1);
     fog.near += (a.fog.near + (b.fog.near - a.fog.near) * t - fog.near) * smoothing;
     fog.far += (a.fog.far + (b.fog.far - a.fog.far) * t - fog.far) * smoothing;
 
