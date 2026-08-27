@@ -13,7 +13,12 @@ await sleep(500);
 
 const env = { ...process.env, GAME_URL: 'http://127.0.0.1:4173/' };
 let code = 0;
-for (const script of ['scripts/playtest.mjs', 'scripts/test-ui-fit.mjs', 'scripts/test-tutorial.mjs']) {
+for (const script of [
+  'scripts/playtest.mjs',
+  'scripts/test-ui-fit.mjs',
+  'scripts/test-audio.mjs',
+  'scripts/test-tutorial.mjs',
+]) {
   console.log(`\n=== ${script} ===`);
   const run = spawn('node', [script], { stdio: 'inherit', env });
   const result = await new Promise((r) => run.on('close', r));

@@ -420,6 +420,39 @@ flaky gate is worse than none, so the fix rests on the one-off measurement
 recorded above and this note, rather than on a check that would cry wolf.
 
 
+## Audio, which nothing had ever listened to
+
+685 lines of WebAudio graph and 33 synthesised voices had no coverage at all.
+A voice that fell silent, or started emitting NaN and poisoned the master bus,
+would have shipped without a single assertion noticing. `test:audio` plays
+every sound in the catalogue and measures the output.
+
+Two things had to be right before the numbers meant anything, and getting both
+wrong first is what makes them worth writing down.
+
+**The render loop has to be stopped.** Under software rasterisation it starves
+`setTimeout` so badly that a polling analyser reads almost nothing between
+frames. The first version of this measurement concluded that **29 of 33 sounds
+were silent**. They were not — the instrument was. WebAudio runs on its own
+thread and keeps processing with the loop stopped.
+
+**The tap has to be a ScriptProcessor, not an AnalyserNode.** An analyser
+shows a window of the recent past, so a short transient — which most of these
+are — falls between reads.
+
+**And each voice needs the bus to fall quiet first.** Resetting the peak and
+playing immediately measures the *previous* sound's tail, so a completely dead
+voice reads as the decay of the one before it.
+
+The catalogue is enumerated from `SFX_IDS`, which `SfxId` is now derived from,
+so adding a sound to the type is the same act as adding it to the coverage.
+
+Verified by sabotage: silencing `SFX_Coin` and `SFX_Jump` makes the test name
+both. That check itself took two attempts — the first sabotage did not compile,
+so the build kept the healthy bundle and the test "passed" against code that
+was never broken. A green run against a failed build proves nothing, and the
+build output has to be read, not assumed.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

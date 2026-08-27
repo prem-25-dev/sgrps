@@ -1,4 +1,5 @@
 import './ui/styles.css';
+import { SFX_IDS } from './audio/AudioManager';
 import { Game } from './core/Game';
 
 /**
@@ -36,7 +37,10 @@ async function main(): Promise<void> {
 
   try {
     const game = new Game(app);
-    (window as unknown as { game: Game }).game = game;
+    // The browser suites drive the real game through these; SFX_IDS is exposed
+    // alongside so `test:audio` enumerates the catalogue from the source of
+    // truth rather than a copy that can quietly fall out of date.
+    Object.assign(window as unknown as Record<string, unknown>, { game, SFX_IDS });
     await game.boot();
   } catch (err) {
     fail('Something went wrong while starting up. Check the console for details.', err);

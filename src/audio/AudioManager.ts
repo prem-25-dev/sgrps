@@ -11,16 +11,28 @@ import { createNoiseBuffer, createReverbImpulse, envelope, noteFreq, ROOT_MIDI, 
  * looping obliviously.
  */
 
-export type SfxId =
-  | 'SFX_Footstep' | 'SFX_Jump' | 'SFX_Land' | 'SFX_LandHard' | 'SFX_Slide'
-  | 'SFX_Stumble' | 'SFX_Collision' | 'SFX_Whoosh'
-  | 'SFX_Coin' | 'SFX_CoinStreak' | 'SFX_PowerUp' | 'SFX_PowerDown'
-  | 'SFX_ShieldHit' | 'SFX_Magnet' | 'SFX_Boost'
-  | 'SFX_TrainHorn' | 'SFX_TrainBrake' | 'SFX_TrainDoor' | 'SFX_TrainPass'
-  | 'SFX_ImpactMetal' | 'SFX_ImpactWood' | 'SFX_ImpactStone' | 'SFX_ImpactSoft'
-  | 'SFX_TrainImpact' | 'SFX_ElectricArc'
-  | 'SFX_UIHover' | 'SFX_UIClick' | 'SFX_UIBack' | 'SFX_Transition'
-  | 'SFX_MissionComplete' | 'SFX_Achievement' | 'SFX_GameOver' | 'SFX_Countdown';
+/**
+ * Every sound the game can make.
+ *
+ * A list rather than a bare union so the catalogue can be enumerated at
+ * runtime: `test:audio` plays each one and measures the output, which is the
+ * only way a synthesised voice that falls silent — or starts emitting NaN —
+ * would ever be noticed. `SfxId` is derived from it, so adding a sound to the
+ * type is the same act as adding it to the coverage.
+ */
+export const SFX_IDS = [
+  'SFX_Footstep', 'SFX_Jump', 'SFX_Land', 'SFX_LandHard', 'SFX_Slide',
+  'SFX_Stumble', 'SFX_Collision', 'SFX_Whoosh',
+  'SFX_Coin', 'SFX_CoinStreak', 'SFX_PowerUp', 'SFX_PowerDown',
+  'SFX_ShieldHit', 'SFX_Magnet', 'SFX_Boost',
+  'SFX_TrainHorn', 'SFX_TrainBrake', 'SFX_TrainDoor', 'SFX_TrainPass',
+  'SFX_ImpactMetal', 'SFX_ImpactWood', 'SFX_ImpactStone', 'SFX_ImpactSoft',
+  'SFX_TrainImpact', 'SFX_ElectricArc',
+  'SFX_UIHover', 'SFX_UIClick', 'SFX_UIBack', 'SFX_Transition',
+  'SFX_MissionComplete', 'SFX_Achievement', 'SFX_GameOver', 'SFX_Countdown',
+] as const;
+
+export type SfxId = typeof SFX_IDS[number];
 
 export type MusicTrack = 'menu' | 'gameplay' | 'gameover' | 'none';
 export type AmbienceId = 'AMB_City' | 'AMB_Railway' | 'AMB_Wind' | 'AMB_Machinery' | 'AMB_Electrical' | 'AMB_Crowd';
