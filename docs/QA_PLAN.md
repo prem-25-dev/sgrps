@@ -208,6 +208,71 @@ The two that mattered most were verified with a repro before being fixed:
   and the runtime collider added `baseY` twice for slopes, harmless only
   because every obstacle currently spawns at zero.
 
+## What differential testing caught that neither suite did
+
+The fairness suite proves the solver agrees with hand-written expectations.
+The gameplay suite proves the physics behave in hand-built scenarios. For a
+long time nothing checked the two against **each other** — and that gap is
+where the solver's two earlier unsoundnesses had lived, both found by a
+throwaway repro rather than by the 154 assertions passing at the time.
+
+`npm run test:differential` closes it. The solver is asked not just *is this
+survivable* but *show me the route*; the route is then flown through the real
+`PlayerController` and `CollisionSystem` at a pinned speed, across a band of
+take-off timings scaled to one frame at that speed. 416 routes per run, four
+seeds x four speeds, in about 18 seconds.
+
+### The bug it found: the player is a box, not a point
+
+The solver planned on a grid of player **centres** and never modelled the
+depth of the collision box. The real box is 0.3 m half-depth standing
+(0.52 m sliding) — a number that lived only inside `PlayerController`, unknown
+to the solver.
+
+The consequence, reproduced on `SEG_Jump_02`: the solver approved a jump taken
+at z=7.0 for a 0.95 m block spanning z=7.60–8.40. The step that would have
+caught the clip was skipped for ending just short of the obstacle (7.5 < 7.6),
+and the next step cleared it using the height at the *end* of that step
+(1.29 m) — a height the player does not reach until well inside the block. In
+the game the player is 0.86 m up when the front of the box touches the face,
+and dies. No take-off within ±0.4 m survived.
+
+The fix is two lines of model and one of config: `halfDepth` moved into `CFG`
+as the single source of truth both systems read, and the solver's blocking
+test widened by it. It removed the entire failure class (31 divergences to 11
+in one change) and costs nothing in generation — 0 rejections across 12,000
+segments, unchanged.
+
+`test:fairness` now pins it with an assertion that fails on the old model: the
+witness jump must clear the obstacle at its **leading edge**, not its centre.
+
+### What is still open, and why it is reported rather than hidden
+
+The differential test demands something strictly stronger than the fairness
+promise. The promise is that *a* route exists; this asks that the route the
+solver **names** is directly flyable. 32 of 416 currently are not, in three
+reproducible clusters:
+
+- **Tall standable roofs** (`OBS_Container_01`, `OBS_TrainCar_01`). Clearing a
+  2.55 m roof against a 2.70 m jump peak leaves a 1.7 m window of take-off
+  positions at 12 m/s. The witness frequently names a point outside it.
+- **Full-height lane dodges** (`OBS_FencePanel_01`). The solver's state moves
+  to the new lane inside one 0.5 m step; the game slides across over 0.17 s —
+  5.3 m at top speed. The replay leads the press by the transit time, which
+  fixes most but not all of these.
+- **One top-speed slide** (`OBS_Pipe_01` at 31 m/s).
+
+A further 73 routes fly fine once the take-off is moved, with windows over 20
+frames wide — the same grid artefact in its mild form.
+
+None of this shows those segments kill the player: the player is not obliged
+to follow the solver's route, and the generator's own guarantee is unaffected
+(0 unsurvivable segments across 288 km still holds). But each is a place where
+the solver's own answer is not directly playable, so the count is a **ratchet
+in CI that may only go down**, rather than a number rounded away. Closing it
+properly means giving the solver a lane-transit state, which is a real change
+to the state space and is not worth rushing.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

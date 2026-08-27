@@ -76,6 +76,42 @@ check('container is reachable by jumping (2.55m)',
   check('running off a roof falls rather than hovering', r.survivable, false);
 }
 
+// The player is a box, not a point. A jump taken so late that the leading
+// edge is already inside the obstacle when the body is still below its top
+// must be rejected: the solver used to approve exactly this, because it
+// planned on player *centres* and skipped the step that starts just short of
+// the obstacle, then cleared the next step using a height not yet reached.
+{
+  // The exact shape that used to be approved and then killed the player:
+  // a 0.95 m block in the only reachable lane, cleared by a jump.
+  const speed = 12;
+  const zStart = 7.6;
+  const top = 0.95;
+  // Lanes 0 and 2 are walled at the same Z so jumping is the only way past;
+  // otherwise the solver quite reasonably sidesteps and there is no jump to
+  // inspect.
+  const r = v.solve([
+    ob(1, zStart + 0.4, 0, top, 0.8),
+    ob(0, zStart + 0.4, 0, 2.7, 0.8),
+    ob(2, zStart + 0.4, 0, 2.7, 0.8),
+  ], {
+    length: 24, speed, entryLanes: [1], reactionDistance: 0.1, witness: true,
+  });
+  const jump = (r.route ?? []).find((st) => st.action === 'jump');
+  // Height the analytic arc has reached by the time the player's leading edge
+  // touches the obstacle. This is the number the solver used to get wrong.
+  let clearance = -1;
+  if (jump) {
+    const travel = zStart - (jump.z + CFG.player.halfDepth);
+    const t = travel / speed;
+    clearance = CFG.jump.velocity * t + 0.5 * CFG.jump.gravity * t * t;
+  }
+  check('a witness jump clears the obstacle at its leading edge, not its centre',
+    !!jump && clearance >= top, true);
+}
+check('the player half-depth is shared with the collision system',
+  CFG.player.halfDepth > 0 && CFG.slide.halfDepth > CFG.player.halfDepth, true);
+
 const wall = v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7)], opts());
 check('exit lanes exclude blocked lanes', wall.exitLanes.length > 0 && wall.exitLanes.includes(2), true);
 

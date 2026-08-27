@@ -72,7 +72,7 @@ export class PlayerController {
   private prevDistance = 0;
 
   private readonly volume: PlayerVolume = {
-    x: 0, y: 0, z: 0, halfWidth: CFG.player.halfWidth, height: CFG.player.height, halfDepth: 0.3,
+    x: 0, y: 0, z: 0, halfWidth: CFG.player.halfWidth, height: CFG.player.height, halfDepth: CFG.player.halfDepth,
   };
   private readonly hits: HitResult[] = [];
   private readonly nearMisses: ActiveObstacle[] = [];
@@ -287,7 +287,7 @@ export class PlayerController {
     this.volume.y = s.y;
     this.volume.z = s.distance;
     this.volume.height = s.sliding ? CFG.slide.height : CFG.player.height;
-    this.volume.halfDepth = s.sliding ? 0.52 : 0.3;
+    this.volume.halfDepth = s.sliding ? CFG.slide.halfDepth : CFG.player.halfDepth;
 
     this.collision.queryNearMisses(this.volume, this.prevDistance, this.nearMisses);
     for (const obstacle of this.nearMisses) this.hooks.onNearMiss(obstacle);

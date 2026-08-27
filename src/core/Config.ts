@@ -42,6 +42,8 @@ export const CFG = {
     height: 0.85,
     /** Extra downward force so a slide from mid-air snaps to the floor. */
     airSnap: -34,
+    /** Collider half-depth while sliding; the body is stretched along Z. */
+    halfDepth: 0.52,
   },
 
   player: {
@@ -51,6 +53,16 @@ export const CFG = {
     laneChangeDuration: 0.17,
     /** Horizontal half width used for collision against obstacles. */
     halfWidth: 0.32,
+    /**
+     * Half-depth of the collision box along the run axis.
+     *
+     * The fairness solver needs this as much as the collision system does: it
+     * plans on a grid of player *centres*, but the player's leading edge meets
+     * an obstacle a half-depth earlier than the centre does. Leaving this
+     * known only to PlayerController let the solver approve jumps that clip
+     * the front face of the very obstacle they were meant to clear.
+     */
+    halfDepth: 0.3,
     /**
      * A miss inside this lateral gap counts as a near miss.
      *

@@ -37,6 +37,9 @@ jobs:
       - name: Fairness engine
         run: npm run test:fairness
 
+      - name: Fairness solver against the real physics
+        run: npm run test:differential
+
       - name: Gameplay integration
         run: npm run test:gameplay
 

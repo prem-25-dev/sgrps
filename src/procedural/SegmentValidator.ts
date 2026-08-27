@@ -49,6 +49,25 @@ export interface SolveOptions {
   reactionDistance: number;
   /** Resolution of the simulation, metres. Smaller is stricter and slower. */
   step?: number;
+  /**
+   * Record a concrete surviving route as well as proving one exists.
+   *
+   * Off by default: it costs a parent pointer and an action byte per state,
+   * which the generator does not need. The differential test turns it on so
+   * the route can be replayed through the real player physics.
+   */
+  witness?: boolean;
+}
+
+/** One decision on a surviving route, in segment-local metres. */
+export interface WitnessStep {
+  /** Local Z at which the action is taken. */
+  z: number;
+  /** Lane the player is in when taking it. */
+  lane: number;
+  /** Lane to move to; equals `lane` when holding. */
+  toLane: number;
+  action: 'run' | 'jump' | 'slide';
 }
 
 export interface SolveResult {
@@ -64,6 +83,8 @@ export interface SolveResult {
   blockers: string[];
   /** How many distinct states were explored; used by the perf report. */
   explored: number;
+  /** A concrete surviving route, when `witness` was requested. */
+  route?: WitnessStep[];
 }
 
 const MODE_GROUND = 0;
@@ -138,10 +159,22 @@ function buildModel(speed: number, length: number, step: number): Model {
   };
 }
 
-/** Vertical extent the player occupies in a given mode. */
-function playerBox(model: Model, mode: number, surface: number): { min: number; max: number; landing: boolean } {
+/**
+ * Vertical extent the player occupies in a given mode, and how deep the
+ * collision box is along the run axis in that mode.
+ *
+ * The depth matters because the solver plans on a grid of player centres: an
+ * obstacle is reached by the leading edge a half-depth before the centre gets
+ * there, and left by the trailing edge a half-depth after.
+ */
+function playerBox(
+  model: Model, mode: number, surface: number,
+): { min: number; max: number; landing: boolean; halfDepth: number } {
   if (mode === MODE_GROUND) {
-    return { min: surface, max: surface + CFG.player.height, landing: false };
+    return {
+      min: surface, max: surface + CFG.player.height,
+      landing: false, halfDepth: CFG.player.halfDepth,
+    };
   }
   if (mode <= model.airSteps) {
     // Sweep the box over the whole step rather than sampling its start. At a
@@ -153,6 +186,7 @@ function playerBox(model: Model, mode: number, surface: number): { min: number; 
       min: Math.min(y, yNext),
       max: Math.max(y, yNext) + CFG.player.height,
       landing: model.arc[mode] < model.arc[Math.max(0, mode - 1)],
+      halfDepth: CFG.player.halfDepth,
     };
   }
   if (mode >= model.fallBase) {
@@ -160,9 +194,12 @@ function playerBox(model: Model, mode: number, surface: number): { min: number; 
     const k = Math.min(model.fallSteps, mode - model.fallBase + 1);
     const y = surface - model.fallDrop[k];
     const yNext = surface - model.fallDrop[Math.min(model.fallSteps, k + 1)];
-    return { min: yNext, max: y + CFG.player.height, landing: true };
+    return { min: yNext, max: y + CFG.player.height, landing: true, halfDepth: CFG.player.halfDepth };
   }
-  return { min: surface, max: surface + CFG.slide.height, landing: false };
+  return {
+    min: surface, max: surface + CFG.slide.height,
+    landing: false, halfDepth: CFG.slide.halfDepth,
+  };
 }
 
 export class SegmentValidator {
@@ -176,6 +213,9 @@ export class SegmentValidator {
   private frontier = new Int32Array(4096);
   private nextFrontier = new Int32Array(4096);
   private laneReach = new Uint8Array(0);
+  // Witness recording only; left at zero length until a caller asks for it.
+  private parent = new Int32Array(0);
+  private action = new Uint8Array(0);
   private readonly surfaces = new Float64Array(MAX_SURFACES);
   private surfaceCount = 1;
 
@@ -231,6 +271,18 @@ export class SegmentValidator {
     if (this.visited.length < total) this.visited = new Uint8Array(total);
     else this.visited.fill(0, 0, total);
     const visited = this.visited;
+
+    const witness = opts.witness === true;
+    if (witness) {
+      if (this.parent.length < total) {
+        this.parent = new Int32Array(total);
+        this.action = new Uint8Array(total);
+      }
+      this.parent.fill(-1, 0, total);
+      this.action.fill(0, 0, total);
+    }
+    const parent = this.parent;
+    const action = this.action;
 
     const laneReachSize = (model.zSteps + 1) * lanes;
     if (this.laneReach.length < laneReachSize) this.laneReach = new Uint8Array(laneReachSize);
@@ -340,6 +392,11 @@ export class SegmentValidator {
           for (let mi = 0; mi < modeCount; mi++) {
             let m = modeBuf[mi];
             let nextSurface = surface;
+            // What the player pressed to produce this transition. Only a
+            // grounded state offers a choice; every other mode is the
+            // continuation of an action already committed to. Captured here
+            // because the landing and fall branches below rewrite `m`.
+            const kind = mode === MODE_GROUND ? mi : 0;
 
             if (m > 0 && m <= model.airSteps) {
               const y = surface + model.arc[m];
@@ -379,8 +436,17 @@ export class SegmentValidator {
             }
 
             const box = playerBox(model, m, nextSurface);
-            let hit = blockedIn(lane, z0, changing ? laneSweepEnd : z1, box.min, box.max);
-            if (!hit && changing) hit = blockedIn(nl, z0, laneSweepEnd, box.min, box.max);
+            // The player is a box, not a point. Widening the tested span by
+            // the half-depth is what stops an ascending jump being approved
+            // against an obstacle whose front face the player is already
+            // inside: without it the step that would have caught the clip is
+            // skipped for starting just short of the obstacle, and the next
+            // step clears it using a height the player has not reached yet.
+            const hd = box.halfDepth;
+            const zA = z0 - hd;
+            const zB = (changing ? laneSweepEnd : z1) + hd;
+            let hit = blockedIn(lane, zA, zB, box.min, box.max);
+            if (!hit && changing) hit = blockedIn(nl, zA, laneSweepEnd + hd, box.min, box.max);
             if (hit) {
               blockers.add(hit.id);
               continue;
@@ -390,6 +456,10 @@ export class SegmentValidator {
             const nk = key(zi + 1, nl, m, nsi);
             if (visited[nk]) continue;
             visited[nk] = 1;
+            if (witness) {
+              parent[nk] = k;
+              action[nk] = kind * 4 + (nl - lane + 1);
+            }
             explored++;
             nextFrontier[nextCount++] = nk;
             laneReach[(zi + 1) * lanes + nl] = 1;
@@ -418,6 +488,44 @@ export class SegmentValidator {
     for (let l = 0; l < lanes; l++) if (exitMask & (1 << l)) exitLanes.push(l);
     if (exitLanes.length === 0) {
       for (let l = 0; l < lanes; l++) if (laneReach[model.zSteps * lanes + l]) exitLanes.push(l);
+    }
+
+    // Walk the parent pointers back from an exit state to recover one concrete
+    // route. Grounded exits are preferred so the replay finishes on its feet
+    // rather than mid-jump, which is also what the next segment assumes.
+    let route: WitnessStep[] | undefined;
+    if (witness && frontierCount > 0) {
+      let end = -1;
+      for (let f = 0; f < frontierCount; f++) {
+        const local = frontier[f] - model.zSteps * perZ;
+        const si = local % surfaceCount;
+        const mode = ((local - si) / surfaceCount) % model.modes;
+        if (mode === MODE_GROUND) { end = frontier[f]; break; }
+      }
+      if (end < 0) end = frontier[0];
+
+      const steps: WitnessStep[] = [];
+      let cur = end;
+      for (let zi = model.zSteps; zi > 0; zi--) {
+        const prev = parent[cur];
+        if (prev < 0) break;
+        const code = action[cur];
+        const kind = (code / 4) | 0;
+        const delta = (code % 4) - 1;
+        const pLocal = prev - (zi - 1) * perZ;
+        const pSi = pLocal % surfaceCount;
+        const pMode = ((pLocal - pSi) / surfaceCount) % model.modes;
+        const pLane = (((pLocal - pSi) / surfaceCount) - pMode) / model.modes;
+        steps.push({
+          z: (zi - 1) * step,
+          lane: pLane,
+          toLane: pLane + delta,
+          action: kind === 1 ? 'jump' : kind === 2 ? 'slide' : 'run',
+        });
+        cur = prev;
+      }
+      steps.reverse();
+      route = steps;
     }
 
     // Reaction guarantee: at the point the player had to commit, did they have
@@ -450,7 +558,7 @@ export class SegmentValidator {
     }
 
     this.accepted++;
-    return { survivable: true, rushed: false, exitLanes, worstApproach: reported, blockers: [], explored };
+    return { survivable: true, rushed: false, exitLanes, worstApproach: reported, blockers: [], explored, route };
   }
 
   /**
