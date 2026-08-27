@@ -22,7 +22,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
 const bootToMenu = async () => {
   await page.goto(URL, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => document.getElementById('menu')?.classList.contains('active'), { timeout: 90000 });
+  await page.waitForFunction(() => document.getElementById('menu')?.classList.contains('active'), null, { timeout: 90000 });
   await page.waitForTimeout(800);
 };
 
@@ -50,7 +50,7 @@ async function startFreshTutorial(label) {
 
 // --- First run: no history, so the tutorial should take over ---------------
 await page.goto(URL, { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => !!window.game, { timeout: 90000 });
+await page.waitForFunction(() => !!window.game, null, { timeout: 90000 });
 await wipeProfile();
 await bootToMenu();
 

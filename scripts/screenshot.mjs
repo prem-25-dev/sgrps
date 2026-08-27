@@ -17,11 +17,11 @@ async function waitForMenuCamera(page) {
   await page.waitForFunction(() => {
     const c = window.game?.camera;
     return c && c.fov < 46.4 && c.position.z < -2.0;
-  }, { timeout: 120000 }).catch(() => {});
+  }, null, { timeout: 120000 }).catch(() => {});
 }
 
 await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => document.getElementById('menu')?.classList.contains('active'), { timeout: 90000 });
+await page.waitForFunction(() => document.getElementById('menu')?.classList.contains('active'), null, { timeout: 90000 });
 await waitForMenuCamera(page);
 await page.screenshot({ path: '/tmp/playtest/menu2.png' });
 await page.$eval('#menu button.primary', el => el.click());

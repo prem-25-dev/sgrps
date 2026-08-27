@@ -60,6 +60,17 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise { from { opacity: 0; transform: translateY(calc(var(--u) * 1.2)); } to { opacity: 1; transform: none; } }
 @keyframes pop { 0% { transform: scale(0.86); opacity: 0; } 60% { transform: scale(1.04); } 100% { transform: scale(1); opacity: 1; } }
+/* Panels are centred with a transform, and an animation's transform replaces
+   the base one outright — with `both` it keeps replacing it after the
+   animation ends. Sharing `pop` therefore silently threw the centring away and
+   left every panel pinned with its top edge at the vertical midpoint, pushing
+   its actions off the bottom of the screen. The translate has to be carried
+   through every keyframe. */
+@keyframes panelPop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.86); }
+  60% { transform: translate(-50%, -50%) scale(1.04); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
 
 /* ---------------------------------------------------------------- Loading */
 /* The `.screen` display rule is a class selector, so these ID rules have to
@@ -219,7 +230,7 @@ button.small { padding: calc(var(--u) * 0.45) calc(var(--u) * 0.8); font-size: c
   background: var(--panel-solid); border: 1px solid var(--line);
   border-radius: calc(var(--radius) * 1.4); box-shadow: var(--shadow);
   padding: calc(var(--u) * 1.6);
-  animation: pop 0.24s ease both;
+  animation: panelPop 0.24s ease both;
 }
 .panel h2 { margin: 0 0 calc(var(--u) * 0.4); font-size: calc(var(--u) * 1.7); letter-spacing: -0.01em; }
 .panel h3 { margin: calc(var(--u) * 1.2) 0 calc(var(--u) * 0.5); font-size: calc(var(--u) * 0.8); color: var(--muted); letter-spacing: 0.18em; text-transform: uppercase; }

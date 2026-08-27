@@ -318,6 +318,31 @@ of them and were obvious in the first screenshot:
    joint. Front-on it read as shoulder pads with a piece cut out. The sleeve
    now runs over the dome, putting the only seam at the hem.
 
+### The bug that made the game unfinishable
+
+Looking at the game-over screen turned up the worst defect in the project. At
+1280x720, at 1024x600 and on a phone, the panel's "Run again" and "Menu"
+buttons sat entirely below the fold. A player who died could not restart and
+could not return to the menu. The same fault put the "Back" button off-screen
+on Missions and Achievements, so those were dead ends too.
+
+The cause is a CSS interaction with no visible symptom in the source. Panels
+are centred with `transform: translate(-50%, -50%)`, and an animation's
+transform *replaces* the base transform rather than composing with it — with
+`animation-fill-mode: both` it keeps replacing it after the animation ends.
+`.panel` shared the `pop` keyframes, which set only `scale`, so the centring
+was discarded and every panel was pinned with its top edge at the vertical
+midpoint. Panels now use their own `panelPop` keyframes carrying the translate
+through every step.
+
+The browser suite could not have caught this, and that is the point: it drives
+buttons with `el.click()`, which works perfectly on an element no human can
+see or reach. Every click "passed" while the game was unfinishable.
+`test:ui-fit` now checks geometry instead of behaviour — after the open
+animation settles, every button on every panel must lie inside the viewport at
+five sizes from 1920x1080 down to a phone in landscape. Reverting the CSS
+fails 8 of its 8 assertions at 1280x720 alone.
+
 ### The screenshot harness was lying too
 
 A fourth "defect" was not one. Early captures showed the menu framing the back
@@ -330,6 +355,15 @@ artifacts CI uploads show what a player would see.
 
 That is the same failure as the differential harness's three: a fixed wall of
 wall-clock waiting, in an environment where wall clock means nothing.
+
+And one more of the same family, found while writing `test:ui-fit`: every
+`page.waitForFunction(fn, { timeout: N })` in the browser scripts was passing
+its options object as Playwright's *argument* parameter — the signature is
+`(fn, arg, options)`. Every one of those waits silently used the 30 s default
+instead of the timeout written next to it. They passed anyway, right up until
+a wait genuinely needed longer than 30 s, at which point the failure looked
+like a game bug rather than a harness one. All of them now pass an explicit
+`null` argument.
 
 ## Known limitations
 

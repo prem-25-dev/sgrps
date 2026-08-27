@@ -19,7 +19,8 @@
     "test:gameplay": "esbuild scripts/test-gameplay.ts --bundle --platform=node --format=esm --outfile=.tmp/gameplay.mjs && node .tmp/gameplay.mjs",
     "test:progression": "esbuild scripts/test-progression.ts --bundle --platform=node --format=esm --outfile=.tmp/prog.mjs && node .tmp/prog.mjs",
     "test:animation": "esbuild scripts/test-animation.ts --bundle --platform=node --format=esm --outfile=.tmp/anim.mjs && node .tmp/anim.mjs",
-    "test:differential": "esbuild scripts/test-fairness-differential.ts --bundle --platform=node --format=esm --outfile=.tmp/diff.mjs && node .tmp/diff.mjs"
+    "test:differential": "esbuild scripts/test-fairness-differential.ts --bundle --platform=node --format=esm --outfile=.tmp/diff.mjs && node .tmp/diff.mjs",
+    "test:ui-fit": "node scripts/test-ui-fit.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

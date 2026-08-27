@@ -4,7 +4,7 @@ const browser = await launchGameBrowser();
 const page = await browser.newPage({ viewport: { width: 900, height: 1100 } });
 page.on('pageerror', e => console.log('PAGEERROR', e.message));
 await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => document.getElementById('menu')?.classList.contains('active'), { timeout: 90000 });
+await page.waitForFunction(() => document.getElementById('menu')?.classList.contains('active'), null, { timeout: 90000 });
 await page.waitForTimeout(1500);
 
 // Hide the UI and light the hero neutrally so the model itself is judged.

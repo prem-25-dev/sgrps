@@ -37,14 +37,14 @@ async function waitForMenuCamera(page) {
   await page.waitForFunction(() => {
     const c = window.game?.camera;
     return c && c.fov < 46.4 && c.position.z < -2.0;
-  }, { timeout: 120000 }).catch(() => {});
+  }, null, { timeout: 120000 }).catch(() => {});
 }
 
 // Wait for boot to reach the main menu.
 await page.waitForFunction(() => {
   const menu = document.getElementById('menu');
   return menu && menu.classList.contains('active');
-}, { timeout: 90000 });
+}, null, { timeout: 90000 });
 console.log('Reached main menu.');
 await waitForMenuCamera(page);
 await page.screenshot({ path: `${OUT}/01-menu.png` });
