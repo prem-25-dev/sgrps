@@ -114,6 +114,14 @@ Clips are **functions of phase**, not baked keyframes:
 `PlayerAnimator` owns a small state machine with priorities and crossfades.
 Poses are flat `Float32Array` quaternion buffers, so blending allocates nothing.
 
+Because the hero never translates in world Z, "no foot sliding" has an exact
+definition: a planted foot must travel backwards through the character's local
+space at the ground speed. The authored cadences alone gave 77–80% of that, so
+`CADENCE_CALIBRATION` scales them by a measured 1.28 to land at 98–103%.
+`npm run test:animation` samples the toe through the contact window at six
+speeds and fails if it drifts either side, so a future gait edit cannot
+quietly reintroduce the skate.
+
 ## Procedural generation and the fairness engine
 
 `ProceduralGenerator` picks a template that fits the current difficulty *and*

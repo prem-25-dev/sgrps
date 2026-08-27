@@ -46,6 +46,7 @@ npm run playtest     # boots the real game in Chromium and plays it
 | `test:fairness` | No unsurvivable pattern can reach the player (verified over 288 km) |
 | `test:gameplay` | The game actually plays: movement, collision, coins, magnet, every power-up, scoring, rooftop route |
 | `test:progression` | Saves survive reloads and corruption; every mission and achievement is reachable |
+| `test:animation` | No NaN in the rig, feet stay on the deck, and a planted foot does not slide at any speed |
 | `test:tutorial` | The first-run lesson advances, times out and hands back cleanly |
 | `test:soak` | World streaming pools plateau over 20 km — no leaks |
 | `playtest` | Real browser boot, play, death, restart, pause, all panels, zero console errors |

@@ -46,6 +46,19 @@ that no objective depends on a metric the tracker never supplies — and that
 the difficulty curve, its relief-after-a-stumble, its ceiling, and the zone
 schedule all behave.
 
+### `npm run test:animation` — animation quality
+21 assertions expressing, as numbers, the checks a person would otherwise make
+by eye: no NaN or denormalised quaternion anywhere in the rig across all 23
+clips and their crossfades, feet that neither sink through the deck nor float
+above it, cadence and lean that rise with speed, arms that counter-swing
+against the legs, the state machine's priorities, and the LOD swap.
+
+The one that matters most is foot sliding. The hero never translates in world
+Z — the world moves past instead — so a planted foot must travel backwards
+through the character's local space at exactly the ground speed. The suite
+samples the toe's velocity through the contact window at six speeds and fails
+if it drifts either side of it. See "Bugs this suite has caught".
+
 ### `npm run test:tutorial` — first-run lesson
 Drives the step machine headlessly at a fixed timestep, because the browser
 cannot: under software rendering the simulation runs at roughly a fifth of
@@ -141,6 +154,12 @@ typecheck and a browser playtest without being noticed:
   0.95 m it sat just under the 0.98 m clearance left by dodging a 2.2 m
   obstacle into an adjacent 2.4 m lane, so the signature move of the genre
   scored nothing. Now 1.15 m, which still excludes a two-lane berth at 3.38 m.
+- **A planted foot skated forwards at every speed.** The authored cadences
+  left the toe travelling backwards at only 77–80% of ground speed, so the
+  feet slid under the body — the single most recognisable tell of a bad run
+  cycle, and precisely what the bible warns about. Calibrated by sweeping a
+  cadence multiplier and re-measuring: 1.28x lands at 98–103% across 6 to
+  31 m/s. Both bounds are now asserted, so it cannot drift either way.
 - **Jump height depended on the frame rate.** Stepping velocity before
   position undershoots the apex by `v·dt/2`: 2.55 m instead of the configured
   2.70 m at 60 fps, and lower still at 30. That also put the game out of step

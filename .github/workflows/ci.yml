@@ -43,6 +43,9 @@ jobs:
       - name: Progression, persistence and difficulty
         run: npm run test:progression
 
+      - name: Animation quality
+        run: npm run test:animation
+
       - name: Tutorial step machine
         run: npm run test:tutorial
 
