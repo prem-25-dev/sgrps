@@ -23,6 +23,7 @@ import { CollisionSystem, HitResult, ActiveObstacle } from './CollisionSystem';
 import { bus } from './EventBus';
 import { GameStateManager } from './GameStateManager';
 import { GameState } from './Types';
+import { Tutorial } from './Tutorial';
 
 /**
  * GameManager: owns the renderer, the systems, and the frame loop.
@@ -61,6 +62,7 @@ export class Game {
   private readonly lighting: LightingRig;
   private readonly zones: ZoneManager;
   private readonly ui: UIManager;
+  private readonly tutorial: Tutorial;
 
   private hero!: Hero;
   private animator!: PlayerAnimator;
@@ -79,6 +81,8 @@ export class Game {
   /** Rolling average used to drop quality automatically on weak hardware. */
   private slowFrames = 0;
   private autoQualityApplied = false;
+  /** Set when the pause was entered mid-tutorial, so resume restores it. */
+  private pausedFromTutorial = false;
 
   constructor(private readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -95,6 +99,7 @@ export class Game {
     container.appendChild(this.renderer.domElement);
 
     this.audio = new AudioManager(this.save);
+    this.tutorial = new Tutorial(this.save);
     this.missions = new MissionManager(this.save);
     this.achievements = new AchievementManager(this.save);
     this.generator = new ProceduralGenerator(this.seed, this.difficulty);
@@ -191,8 +196,18 @@ export class Game {
     // Prime the world so the first frame is already populated.
     this.track.update(0, 0, CFG.speed.base);
 
-    this.state.set(GameState.PLAYING);
-    this.ui.onState(GameState.PLAYING);
+    // A first-time player gets the tutorial: a real run, with prompts.
+    const teaching = this.tutorial.shouldRun;
+    if (teaching) {
+      this.tutorial.start();
+      this.difficulty.setCeiling(this.tutorial.difficultyCeiling);
+    } else {
+      this.tutorial.finish();
+      this.difficulty.setCeiling(1);
+    }
+    const target = teaching ? GameState.TUTORIAL : GameState.PLAYING;
+    this.state.set(target);
+    this.ui.onState(target);
     bus.emit('run:start', { seed: this.seed });
   }
 
@@ -218,6 +233,9 @@ export class Game {
   }
 
   private handleDeath(cause: string): void {
+    this.tutorial.finish();
+    this.ui.setTutorial(null);
+    this.difficulty.setCeiling(1);
     this.audio.play('SFX_GameOver');
     this.audio.setMusic('gameover');
     this.audio.stopAll();
@@ -249,6 +267,7 @@ export class Game {
 
     // Let the death animation play before the panel appears.
     setTimeout(() => {
+      if (this.state.is(GameState.TUTORIAL)) this.state.set(GameState.PLAYING);
       if (!this.state.is(GameState.PLAYING)) return;
       this.state.set(GameState.GAME_OVER);
       this.ui.showResults(stats, isBestScore, isBestDistance, completed, unlocked);
@@ -257,7 +276,8 @@ export class Game {
   }
 
   private togglePause(): void {
-    if (this.state.is(GameState.PLAYING)) {
+    if (this.state.is(GameState.PLAYING, GameState.TUTORIAL)) {
+      this.pausedFromTutorial = this.state.is(GameState.TUTORIAL);
       this.state.set(GameState.PAUSED);
       this.ui.onState(GameState.PAUSED);
       this.audio.suspend();
@@ -268,8 +288,11 @@ export class Game {
 
   private resume(): void {
     if (!this.state.is(GameState.PAUSED)) return;
-    this.state.set(GameState.PLAYING);
-    this.ui.onState(GameState.PLAYING);
+    // Pausing part-way through the tutorial must not skip the rest of it.
+    const target = this.pausedFromTutorial && this.tutorial.active ? GameState.TUTORIAL : GameState.PLAYING;
+    this.pausedFromTutorial = false;
+    this.state.set(target);
+    this.ui.onState(target);
     void this.audio.resume();
     // Drop the accumulated time so the pause does not teleport the player.
     this.lastTime = performance.now();
@@ -373,6 +396,8 @@ export class Game {
     const s = this.player.state;
     const previousDistance = s.distance;
 
+    if (this.state.is(GameState.TUTORIAL)) this.updateTutorial(dt, s.distance);
+
     this.player.speedMultiplier = this.powerUps.speedMultiplier;
     this.player.update(dt, this.cameraDistanceToHero());
 
@@ -422,6 +447,20 @@ export class Game {
       })),
     );
     this.save.flush();
+  }
+
+  /** Steps the tutorial and releases the difficulty ceiling when it ends. */
+  private updateTutorial(dt: number, distance: number): void {
+    const step = this.tutorial.update(dt, distance);
+    this.ui.setTutorial(step);
+    if (this.tutorial.active) {
+      this.difficulty.setCeiling(this.tutorial.difficultyCeiling);
+      return;
+    }
+    this.difficulty.setCeiling(1);
+    this.ui.setTutorial(null);
+    this.state.set(GameState.PLAYING);
+    this.ui.onState(GameState.PLAYING);
   }
 
   private updateMenu(dt: number): void {
@@ -480,10 +519,10 @@ export class Game {
   private bindWindowEvents(): void {
     window.addEventListener('resize', () => this.resize());
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && this.state.is(GameState.PLAYING)) this.togglePause();
+      if (document.hidden && this.state.is(GameState.PLAYING, GameState.TUTORIAL)) this.togglePause();
     });
     window.addEventListener('blur', () => {
-      if (this.state.is(GameState.PLAYING)) this.togglePause();
+      if (this.state.is(GameState.PLAYING, GameState.TUTORIAL)) this.togglePause();
     });
     window.addEventListener('beforeunload', () => this.save.flush(true));
   }

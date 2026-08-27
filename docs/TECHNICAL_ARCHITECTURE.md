@@ -25,7 +25,8 @@ The character faces **−Z**. Lanes are on X, `laneToX(i) = (i − 1) × 2.4`.
 
 ```
 src/core/          Config, Types, EventBus, GameStateManager, ObjectPool,
-                   CollisionSystem, Random, Game (renderer + frame loop)
+                   CollisionSystem, Random, Tutorial,
+                   Game (renderer + frame loop)
 src/assets/        TextureFactory, MaterialLibrary, GeometryUtil,
                    HeroIdentity/HeroRig/HeroFactory,
                    Track/Train/Station/City/Prop/Vehicle/Vegetation factories
@@ -144,6 +145,17 @@ Cost: ~0.7 ms per solve, roughly once per second of play.
 The runtime collider (`CollisionSystem`) implements the *same* model — ramp
 slopes, standable tops, slide heights — because a proof against a different
 model would be worthless.
+
+## The tutorial
+
+`GameState.TUTORIAL` is a real run, not a separate mode: `simulating` is true
+for it, so every system updates exactly as in normal play. The only
+differences are a difficulty ceiling of 0.1 and a prompt on screen.
+
+The step machine needs an explicit "done" flag alongside its hold timer. An
+earlier version keyed off the timer alone, so once a completed prompt's hold
+expired the step fell back into its own showing branch and the tutorial
+looped on step one forever. `npm run test:tutorial` covers it.
 
 ## Performance
 

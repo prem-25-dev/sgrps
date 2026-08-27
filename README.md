@@ -44,9 +44,13 @@ npm run playtest     # boots the real game in Chromium and plays it
 |---|---|
 | `test:geometry` | Swept surfaces have correct winding in every direction |
 | `test:fairness` | No unsurvivable pattern can reach the player (verified over 288 km) |
+| `test:tutorial` | The first-run lesson advances, times out and hands back cleanly |
 | `test:soak` | World streaming pools plateau over 20 km — no leaks |
 | `playtest` | Real browser boot, play, death, restart, pause, all panels, zero console errors |
 | `test:hero` | Character LOD budgets and skin-weight normalisation |
+
+CI runs all of these on every push and pull request
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## What's in it
 
@@ -61,6 +65,9 @@ npm run playtest     # boots the real game in Chromium and plays it
   variants, 48 props, 8 vehicles, 8 plant types, 12 coin patterns.
 - **5 power-ups**, combos and multipliers, near-miss scoring, 15 missions,
   12 achievements, persistent progression.
+- **A first-run tutorial** that teaches by asking rather than blocking — the
+  run is real from the first metre, each step waits for you to do it once,
+  and anything you ignore times out.
 - **Synthesised audio** — adaptive three-layer score, per-zone ambience,
   and every effect generated through WebAudio.
 

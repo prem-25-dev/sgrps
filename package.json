@@ -9,12 +9,13 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:geometry && npm run test:fairness && npm run test:soak",
+    "test": "npm run test:geometry && npm run test:fairness && npm run test:tutorial && npm run test:soak",
     "test:geometry": "esbuild scripts/test-geometry.ts --bundle --platform=node --format=esm --outfile=.tmp/geo.mjs && node .tmp/geo.mjs",
     "test:fairness": "esbuild scripts/test-validator.ts --bundle --platform=node --format=esm --outfile=.tmp/val.mjs && node .tmp/val.mjs",
     "test:soak": "esbuild scripts/soak.ts --bundle --platform=node --format=esm --outfile=.tmp/soak.mjs && node .tmp/soak.mjs",
     "test:hero": "esbuild scripts/inspect-hero.ts --bundle --platform=node --format=esm --outfile=.tmp/hero.mjs && node .tmp/hero.mjs",
-    "playtest": "npm run build && node scripts/serve-and-playtest.mjs"
+    "playtest": "npm run build && node scripts/serve-and-playtest.mjs",
+    "test:tutorial": "esbuild scripts/test-tutorial-unit.ts --bundle --platform=node --format=esm --outfile=.tmp/tut.mjs && node .tmp/tut.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

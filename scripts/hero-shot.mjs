@@ -1,9 +1,6 @@
 /** Close-up captures of the hero from several angles, for art review. */
-import { chromium } from 'playwright';
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--disable-dev-shm-usage'],
-});
+import { launchGameBrowser } from './browser.mjs';
+const browser = await launchGameBrowser();
 const page = await browser.newPage({ viewport: { width: 900, height: 1100 } });
 page.on('pageerror', e => console.log('PAGEERROR', e.message));
 await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });

@@ -64,6 +64,8 @@ export class UIManager {
   private fpsEl!: HTMLElement;
   private toastsEl!: HTMLElement;
   private zoneBanner!: HTMLElement;
+  private tutorialEl!: HTMLElement;
+  private tutorialShown = '';
   private loadingFill!: HTMLElement;
   private loadingLabel!: HTMLElement;
 
@@ -273,6 +275,9 @@ export class UIManager {
     this.zoneBanner = el('div', 'zone-banner');
     screen.appendChild(this.zoneBanner);
 
+    this.tutorialEl = el('div', 'tutorial');
+    screen.appendChild(this.tutorialEl);
+
     this.fpsEl = el('div');
     this.fpsEl.id = 'fps';
     screen.appendChild(this.fpsEl);
@@ -340,6 +345,22 @@ export class UIManager {
       if (m.complete) line.style.color = 'var(--good)';
       this.missionTrackEl.appendChild(line);
     }
+  }
+
+  /** Shows the current tutorial prompt, or clears it when passed null. */
+  setTutorial(step: { id: string; prompt: string; keys: string } | null): void {
+    const id = step?.id ?? '';
+    if (id === this.tutorialShown) return;
+    this.tutorialShown = id;
+    if (!step) {
+      this.tutorialEl.classList.remove('show');
+      return;
+    }
+    this.tutorialEl.innerHTML =
+      `<b>${step.prompt}</b>${step.keys ? `<span>${step.keys}</span>` : ''}`;
+    this.tutorialEl.classList.remove('show');
+    void this.tutorialEl.offsetWidth;
+    this.tutorialEl.classList.add('show');
   }
 
   setFps(text: string, visible: boolean): void {
@@ -661,6 +682,8 @@ export class UIManager {
     this.lastScore = -1;
     this.lastCoins = -1;
     this.lastDistance = -1;
+    this.tutorialShown = '';
+    this.tutorialEl.classList.remove('show');
     for (const node of this.powerupNodes.values()) node.chip.remove();
     this.powerupNodes.clear();
     this.updateMissionTrack();

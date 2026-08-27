@@ -22,6 +22,14 @@ and −Z.
 
 Pass criterion: **zero** shipped segments without a survivable route.
 
+### `npm run test:tutorial` — first-run lesson
+Drives the step machine headlessly at a fixed timestep, because the browser
+cannot: under software rendering the simulation runs at roughly a fifth of
+real time, so a run never travels the few hundred metres the later steps are
+gated on. Covers an eager player, a player who ignores every prompt, ordering,
+completion, the difficulty cap, and the specific bug that a step satisfied
+immediately must clear rather than stick on screen.
+
 ### `npm run test:soak` — world streaming
 Runs the real TrackManager, generator, collision, coin and power-up systems
 for 12 simulated minutes (~20 km) with no renderer, sampling scene object and
@@ -43,6 +51,13 @@ Prints triangle counts per LOD, per-part bounds and skin-weight normalisation.
 Pass criterion: LOD0 within the 20k–60k budget, all weights summing to 1.
 
 ## Manual checklist
+
+### First run
+- [ ] A profile with no history enters the tutorial
+- [ ] Prompts appear, advance when performed, and time out when ignored
+- [ ] Pausing mid-lesson resumes into the lesson, not past it
+- [ ] Completing it hands back to normal play and lifts the difficulty cap
+- [ ] It never appears again after a completed run
 
 ### Startup
 - [ ] Loading bar advances and the screen clears completely

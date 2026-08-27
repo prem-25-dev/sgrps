@@ -9,10 +9,18 @@ export class DifficultyManager {
   private value = 0;
   /** Temporary relief applied after a stumble so a recovery is winnable. */
   private relief = 0;
+  /** Hard ceiling, used to hold the world gentle while the tutorial runs. */
+  private ceiling = 1;
 
   reset(): void {
     this.value = 0;
     this.relief = 0;
+    this.ceiling = 1;
+  }
+
+  /** Clamps how hard the generator is allowed to build. */
+  setCeiling(ceiling: number): void {
+    this.ceiling = Math.min(1, Math.max(0, ceiling));
   }
 
   update(distance: number, dt: number): void {
@@ -30,7 +38,7 @@ export class DifficultyManager {
 
   /** Difficulty the generator should build to right now. */
   get current(): number {
-    return Math.max(0, this.value - this.relief);
+    return Math.min(this.ceiling, Math.max(0, this.value - this.relief));
   }
 
   /** Raw curve without relief, used for scoring and the HUD. */

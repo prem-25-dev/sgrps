@@ -11,10 +11,13 @@ server.stdout.on('data', (d) => { if (String(d).includes('4173')) ready = true; 
 for (let i = 0; i < 40 && !ready; i++) await sleep(250);
 await sleep(500);
 
-const test = spawn('node', ['scripts/playtest.mjs'], {
-  stdio: 'inherit',
-  env: { ...process.env, GAME_URL: 'http://127.0.0.1:4173/' },
-});
-const code = await new Promise((r) => test.on('close', r));
+const env = { ...process.env, GAME_URL: 'http://127.0.0.1:4173/' };
+let code = 0;
+for (const script of ['scripts/playtest.mjs', 'scripts/test-tutorial.mjs']) {
+  console.log(`\n=== ${script} ===`);
+  const run = spawn('node', [script], { stdio: 'inherit', env });
+  const result = await new Promise((r) => run.on('close', r));
+  if (result) code = result;
+}
 server.kill();
-process.exit(code ?? 0);
+process.exit(code);

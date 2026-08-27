@@ -120,6 +120,14 @@ changing: City Edge → Metro District → Downtown → Industrial Belt → Elev
 Line → Construction → Neon District. Each changes buildings, props, planting,
 lighting, fog, materials and music intensity. None changes the rules of play.
 
+## First run
+
+A player with no history gets the tutorial: a real run, at capped difficulty,
+with six prompts gated on distance. Each waits for the player to perform the
+action once; anything ignored times out, so someone who already knows the
+genre is never held up. Pausing part-way resumes back into the lesson rather
+than skipping the rest of it. It never appears again once a run is completed.
+
 ## Progression
 
 - **Missions** — three active at a time, drawn from the lowest unfinished

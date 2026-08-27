@@ -2,7 +2,7 @@
  * Headless playtest. Boots the real game in Chromium, plays it with scripted
  * input, and reports console errors, frame rate, draw calls and run outcomes.
  */
-import { chromium } from 'playwright';
+import { launchGameBrowser } from './browser.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
 const URL = process.env.GAME_URL ?? 'http://localhost:4173/';
@@ -12,10 +12,7 @@ mkdirSync(OUT, { recursive: true });
 const errors = [];
 const warnings = [];
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--disable-dev-shm-usage'],
-});
+const browser = await launchGameBrowser();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 
 page.on('console', (msg) => {
@@ -131,14 +128,16 @@ const fps = await page.evaluate(() => new Promise((resolve) => {
   requestAnimationFrame(tick);
 }));
 
-// Pause only applies mid-run, so make sure we are in one first.
-let inRun = await page.evaluate(() => window.game.state?.state === 'PLAYING');
+// Pause only applies mid-run, so make sure we are in one first. A fresh
+// profile starts in TUTORIAL, which is just as much "in a run" as PLAYING.
+const IN_RUN = ['PLAYING', 'TUTORIAL'];
+let inRun = await page.evaluate((states) => states.includes(window.game.state?.state), IN_RUN);
 if (!inRun) {
   const overActive = await page.evaluate(() => document.getElementById('gameover')?.classList.contains('active'));
   if (overActive) await clickIn('#gameover button.primary');
   else await clickIn('#menu button.primary');
   await page.waitForTimeout(1400);
-  inRun = await page.evaluate(() => window.game.state?.state === 'PLAYING');
+  inRun = await page.evaluate((states) => states.includes(window.game.state?.state), IN_RUN);
 }
 await page.keyboard.press('Escape');
 await page.waitForTimeout(500);
@@ -148,7 +147,7 @@ await page.screenshot({ path: `${OUT}/05-pause.png` });
 // Resume, then verify the run continues, then quit to the menu.
 await clickIn('#pause button.primary');
 await page.waitForTimeout(600);
-const resumed = await page.evaluate(() => window.game.state?.state === 'PLAYING');
+const resumed = await page.evaluate((states) => states.includes(window.game.state?.state), IN_RUN);
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 await clickIn('#pause button.ghost');

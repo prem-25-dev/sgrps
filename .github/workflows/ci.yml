@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch makes the older run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, build and simulation tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npx vite build
+
+      - name: Geometry primitives
+        run: npm run test:geometry
+
+      - name: Fairness engine
+        run: npm run test:fairness
+
+      - name: Tutorial step machine
+        run: npm run test:tutorial
+
+      - name: World streaming soak
+        run: npm run test:soak
+
+      - name: Character budgets
+        run: npm run test:hero
+
+      - name: Report bundle size
+        run: |
+          echo "### Build output" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          du -h dist/assets/* | sort -h >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  playtest:
+    name: Browser playtest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Software rendering, so this job checks correctness and draw calls
+      # rather than frame rate.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npx vite build
+
+      - name: Play the game
+        run: node scripts/serve-and-playtest.mjs
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest-screenshots
+          path: /tmp/playtest/
+          if-no-files-found: warn
+          retention-days: 7
