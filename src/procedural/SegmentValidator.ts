@@ -52,7 +52,10 @@ export interface SolveOptions {
 }
 
 export interface SolveResult {
+  /** True only when a route exists *and* the reaction guarantee is met. */
   survivable: boolean;
+  /** A route exists, but the approach to some obstacle was too short. */
+  rushed: boolean;
   /** Lanes the player can be in at the exit; feeds the next segment. */
   exitLanes: number[];
   /** Smallest clear approach any forced decision had, in metres. */
@@ -71,6 +74,13 @@ const MODE_GROUND = 0;
  * plus any flat roofs in the same window.
  */
 const MAX_SURFACES = 12;
+/** Tallest surface a player can run off, used to size the free-fall table. */
+const MAX_FALL_HEIGHT = 6;
+/**
+ * Fraction of the nominal reaction distance that must separate consecutive
+ * forced decisions in a lane. 1.0 is the full promise.
+ */
+const MIN_APPROACH_FRACTION = 1.0;
 /** Vertical resolution of the standing-height buckets, metres. */
 const SURFACE_RESOLUTION = 0.2;
 
@@ -83,8 +93,12 @@ interface Model {
   modes: number;
   /** Jump arc height above the take-off surface, per air step. */
   arc: Float32Array;
-  /** Air step whose vertical velocity is zero; where a roof fall begins. */
-  apexStep: number;
+  /** Steps in a free fall from rest, long enough to drop off the tallest roof. */
+  fallSteps: number;
+  /** Drop below the take-off surface after k steps of free fall from rest. */
+  fallDrop: Float32Array;
+  /** First mode index of the falling range. */
+  fallBase: number;
 }
 
 function buildModel(speed: number, length: number, step: number): Model {
@@ -97,16 +111,30 @@ function buildModel(speed: number, length: number, step: number): Model {
     const t = (k * step) / speed;
     arc[k] = CFG.jump.velocity * t + 0.5 * CFG.jump.gravity * t * t;
   }
+
+  // Free fall from rest, for a player who runs off the end of a roof rather
+  // than jumping. This is a different curve from the jump arc: it starts at
+  // zero vertical velocity and only descends.
+  const fallTime = Math.sqrt((2 * MAX_FALL_HEIGHT) / -CFG.jump.gravity);
+  const fallSteps = Math.max(1, Math.ceil((fallTime * speed) / step) + 1);
+  const fallDrop = new Float32Array(fallSteps + 1);
+  for (let k = 0; k <= fallSteps; k++) {
+    const t = (k * step) / speed;
+    fallDrop[k] = 0.5 * -CFG.jump.gravity * t * t;
+  }
+
   return {
     step,
     zSteps: Math.max(1, Math.ceil(length / step)),
     airSteps,
     slideSteps,
     laneSteps,
-    // ground + air(1..airSteps) + slide(1..slideSteps)
-    modes: 1 + airSteps + slideSteps,
+    // ground + air(1..airSteps) + slide(1..slideSteps) + fall(1..fallSteps)
+    modes: 1 + airSteps + slideSteps + fallSteps,
     arc,
-    apexStep: Math.max(1, Math.min(airSteps, Math.round(airSteps / 2))),
+    fallSteps,
+    fallDrop,
+    fallBase: 1 + airSteps + slideSteps,
   };
 }
 
@@ -116,8 +144,23 @@ function playerBox(model: Model, mode: number, surface: number): { min: number; 
     return { min: surface, max: surface + CFG.player.height, landing: false };
   }
   if (mode <= model.airSteps) {
+    // Sweep the box over the whole step rather than sampling its start. At a
+    // 0.5 m resolution a descending state could otherwise skim an obstacle's
+    // trailing edge and be reported clear.
     const y = surface + model.arc[mode];
-    return { min: y, max: y + CFG.player.height, landing: model.arc[mode] < model.arc[Math.max(0, mode - 1)] };
+    const yNext = surface + model.arc[Math.min(model.airSteps, mode + 1)];
+    return {
+      min: Math.min(y, yNext),
+      max: Math.max(y, yNext) + CFG.player.height,
+      landing: model.arc[mode] < model.arc[Math.max(0, mode - 1)],
+    };
+  }
+  if (mode >= model.fallBase) {
+    // Free fall: always descending, so always a landing candidate.
+    const k = Math.min(model.fallSteps, mode - model.fallBase + 1);
+    const y = surface - model.fallDrop[k];
+    const yNext = surface - model.fallDrop[Math.min(model.fallSteps, k + 1)];
+    return { min: yNext, max: y + CFG.player.height, landing: true };
   }
   return { min: surface, max: surface + CFG.slide.height, landing: false };
 }
@@ -277,7 +320,13 @@ export class SegmentValidator {
           modeBuf[modeCount++] = 1;
           modeBuf[modeCount++] = model.airSteps + 1;
         } else if (mode <= model.airSteps) {
+          // The jump arc ends back at the take-off height; if nothing is
+          // supporting the player there, the ground branch turns it into a fall.
           modeBuf[modeCount++] = mode + 1 > model.airSteps ? MODE_GROUND : mode + 1;
+        } else if (mode >= model.fallBase) {
+          const fallStep = mode - model.fallBase + 1;
+          // Terminal step repeats, so a fall past the table still descends.
+          modeBuf[modeCount++] = fallStep >= model.fallSteps ? mode : mode + 1;
         } else {
           const slideStep = mode - model.airSteps;
           modeBuf[modeCount++] = slideStep + 1 > model.slideSteps ? MODE_GROUND : model.airSteps + slideStep + 1;
@@ -302,11 +351,27 @@ export class SegmentValidator {
                   nextSurface = ground;
                 }
               }
-            } else if (m === MODE_GROUND) {
+            } else if (m >= model.fallBase) {
+              // Falling: land as soon as a surface comes up to meet us.
+              const k = Math.min(model.fallSteps, m - model.fallBase + 1);
+              const y = surface - model.fallDrop[k];
+              const ground = supportAt(nl, z0, z1, y);
+              if (y <= ground) {
+                m = MODE_GROUND;
+                nextSurface = ground;
+              }
+            } else if (m === MODE_GROUND || (m > model.airSteps && m < model.fallBase)) {
+              // Ground and slide are both supported states, so both have to
+              // check for support. Checking only the grounded mode let a
+              // sliding player carry a roof's height out over the gap beyond
+              // it and hover there for the length of the slide.
               const ground = supportAt(nl, z0, z1, surface);
               if (surface > 0.05 && ground < surface - 0.05) {
-                // Ran off the edge of a roof: fall from the arc apex.
-                m = model.apexStep;
+                // Ran off the edge of a roof. This is a free fall from rest,
+                // not a jump: modelling it as a point on the jump arc left the
+                // player hovering 2.7 m above the roof for the whole descent,
+                // which let the solver approve routes that kill the player.
+                m = model.fallBase;
                 nextSurface = surface;
               } else {
                 nextSurface = ground;
@@ -342,7 +407,7 @@ export class SegmentValidator {
         this.frontier = frontier;
         this.nextFrontier = nextFrontier;
         this.rejections++;
-        return { survivable: false, exitLanes: [], worstApproach: 0, blockers: [...blockers], explored };
+        return { survivable: false, rushed: false, exitLanes: [], worstApproach: 0, blockers: [...blockers], explored };
       }
     }
 
@@ -369,15 +434,40 @@ export class SegmentValidator {
       }
       worstApproach = Math.min(worstApproach, best);
     }
-    if (!Number.isFinite(worstApproach)) worstApproach = opts.length;
+    // Enforce the reaction guarantee. Computing it and returning it without
+    // ever comparing it to the requirement meant the documented promise —
+    // that the player always gets a clear run-up before a forced decision —
+    // was never actually kept.
+    // Infinity means nothing preceded the obstacle inside this window, so the
+    // approach runs back into the previous segment and is unconstrained. It
+    // must be tested before being clamped for reporting, or a segment with no
+    // obstacles at all would be judged against a requirement it cannot meet.
+    const rushed = worstApproach < opts.reactionDistance * MIN_APPROACH_FRACTION;
+    const reported = Number.isFinite(worstApproach) ? worstApproach : opts.length;
+    if (rushed) {
+      this.rejections++;
+      return { survivable: false, rushed: true, exitLanes, worstApproach: reported, blockers: [], explored };
+    }
 
     this.accepted++;
-    return { survivable: true, exitLanes, worstApproach, blockers: [], explored };
+    return { survivable: true, rushed: false, exitLanes, worstApproach: reported, blockers: [], explored };
   }
 
-  /** Distance of clear track immediately before `z` in one lane. */
+  /**
+   * Distance of clear track immediately before `z` in one lane.
+   *
+   * Unbounded when nothing precedes it: the approach runs back into the
+   * previous segment, which was itself validated and which the player entered
+   * on foot. Measuring from the segment boundary instead would treat every
+   * window edge as a wall and reject perfectly readable patterns purely for
+   * sitting near the start of a module.
+   *
+   * So the guarantee this expresses is the one that matters: consecutive
+   * forced decisions in a lane are never closer together than the player's
+   * reaction distance.
+   */
   private clearRunUp(laneObstacles: SolverObstacle[], z: number): number {
-    let nearest = z;
+    let nearest = Infinity;
     for (const o of laneObstacles) {
       if (o.zEnd <= z && z - o.zEnd < nearest) nearest = z - o.zEnd;
     }

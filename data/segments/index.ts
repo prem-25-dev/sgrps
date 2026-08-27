@@ -125,11 +125,14 @@ export const SEGMENT_TEMPLATES: SegmentTemplate[] = [
     { type: 'obstacle', id: 'OBS_OverheadBeam_01', lane: 1, z: 12 },
     { type: 'obstacle', id: 'OBS_Crate_01', lane: 2, z: 19 },
   ]),
+  // The trailing barrier sits at 22.5 rather than 20: at top speed the player
+  // needs 16.3 m of clear lane between two forced decisions, and 20 left only
+  // 14.3 m after the crate stack.
   t('SEG_Gauntlet_02', 'obstacle', 0.55, 1, 5, [
     { type: 'obstacle', id: 'OBS_CrateStack_01', lane: 0, z: 5 },
     { type: 'obstacle', id: 'OBS_TallBarrier_01', lane: 1, z: 5 },
     { type: 'obstacle', id: 'OBS_Pipe_01', lane: 2, z: 14 },
-    { type: 'obstacle', id: 'OBS_Barrier_01', lane: 0, z: 20 },
+    { type: 'obstacle', id: 'OBS_Barrier_01', lane: 0, z: 22.5 },
   ]),
   t('SEG_Weave_01', 'multiLane', 0.5, 1, 6, [
     { type: 'obstacle', id: 'OBS_Wall_01', lane: 0, z: 5 },

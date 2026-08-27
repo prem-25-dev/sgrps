@@ -111,4 +111,23 @@ assert('obstacle list stays bounded', Math.max(...samples.map((s) => s.obstacles
 assert('coin pool stays bounded', Math.max(...samples.map((s) => s.coins)) <= 420, 'coin pool overflowed');
 assert('generator never falls back to empty', generator.stats.fallbacks === 0, `${generator.stats.fallbacks} fallbacks`);
 
+// Pool keys must come from a bounded set. Embedding a per-instance seed in a
+// key means nothing is ever reused: the pools grew to 1,236 retained building
+// meshes over 17 km before this was caught. The scene-graph counts above miss
+// it entirely, because pooled objects are detached from the scene.
+const decorPools = track.decor as unknown as Record<string, { totals: { keys: number; pooled: number } }>;
+const keyCounts = {
+  buildings: decorPools.buildings.totals.keys,
+  props: decorPools.props.totals.keys,
+  vegetation: decorPools.vegetation.totals.keys,
+  vehicles: decorPools.vehicles.totals.keys,
+};
+const totalKeys = Object.values(keyCounts).reduce((a, b) => a + b, 0);
+const totalPooled = ['buildings', 'props', 'vegetation', 'vehicles']
+  .reduce((a, k) => a + decorPools[k].totals.pooled, 0);
+console.log(`decor pool keys after ${(distance / 1000).toFixed(1)} km:`, JSON.stringify(keyCounts),
+  `(${totalPooled} retained objects)`);
+assert('decor pool keys stay bounded', totalKeys < 220, `${totalKeys} distinct keys — pools are not reusing`);
+assert('retained decor objects stay bounded', totalPooled < 1400, `${totalPooled} retained`);
+
 process.exit(fail > 0 ? 1 : 0);

@@ -12,7 +12,7 @@ import { PowerUpManager } from '../powerups/PowerUpManager';
 import { DifficultyManager } from '../procedural/DifficultyManager';
 import { ProceduralGenerator } from '../procedural/ProceduralGenerator';
 import { AchievementManager, MissionManager } from '../progression/MissionManager';
-import { ScoreManager } from '../progression/ScoreManager';
+import { RunStats, ScoreManager } from '../progression/ScoreManager';
 import { SaveManager, Settings } from '../save/SaveManager';
 import { UIManager } from '../ui/UIManager';
 import { VFXManager } from '../vfx/VFXManager';
@@ -83,6 +83,14 @@ export class Game {
   private autoQualityApplied = false;
   /** Set when the pause was entered mid-tutorial, so resume restores it. */
   private pausedFromTutorial = false;
+  /** Results held back until the death animation finishes. */
+  private pendingResults: {
+    stats: RunStats; isBestScore: boolean; isBestDistance: boolean;
+    completed: Array<{ label: string; reward: number }>; unlocked: Array<{ label: string }>;
+  } | null = null;
+  private resultsCountdown = 0;
+  /** True from the moment of death, so no further score is banked. */
+  private scoringFrozen = false;
 
   constructor(private readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -158,6 +166,10 @@ export class Game {
 
     await step(0.85, 'Tuning the world');
     this.applyQuality();
+    // Persisted control preferences have to be pushed into the input layer at
+    // boot; applySettings alone means they are ignored until something is
+    // toggled.
+    this.input.settings.invertVertical = this.save.settings.invertSwipe;
     this.input.attach();
     this.input.on((action) => {
       if (action === 'pause') this.togglePause();
@@ -192,6 +204,9 @@ export class Game {
     this.cameraController.reset();
     this.player.reset();
     this.ui.resetHud();
+    this.pendingResults = null;
+    this.resultsCountdown = 0;
+    this.scoringFrozen = false;
 
     // Prime the world so the first frame is already populated.
     this.track.update(0, 0, CFG.speed.base);
@@ -237,9 +252,14 @@ export class Game {
     this.ui.setTutorial(null);
     this.difficulty.setCeiling(1);
     this.audio.play('SFX_GameOver');
-    this.audio.setMusic('gameover');
+    // stopAll() also stops the music, so the game-over track has to be set
+    // after it or it never plays a note.
     this.audio.stopAll();
+    this.audio.setMusic('gameover');
     this.cameraController.startGameOverShot();
+    // Freeze scoring immediately. Leaving it running for the death animation
+    // let the results panel show a higher score than the one banked as best.
+    this.scoringFrozen = true;
 
     const stats = this.score.stats;
     const isBestScore = stats.score > this.save.state.bestScore;
@@ -265,14 +285,27 @@ export class Game {
 
     bus.emit('run:end', { score: stats.score, distance: stats.distance, coins: stats.coins, cause });
 
-    // Let the death animation play before the panel appears.
-    setTimeout(() => {
-      if (this.state.is(GameState.TUTORIAL)) this.state.set(GameState.PLAYING);
-      if (!this.state.is(GameState.PLAYING)) return;
-      this.state.set(GameState.GAME_OVER);
-      this.ui.showResults(stats, isBestScore, isBestDistance, completed, unlocked);
-      this.ui.onState(GameState.GAME_OVER);
-    }, 1500);
+    // Let the death animation play before the panel appears. This is driven
+    // from the frame loop rather than a timer: a wall-clock timeout fires
+    // while the game is paused, and pausing during the death animation used
+    // to leave the run soft-locked in PLAYING with a dead player.
+    this.pendingResults = { stats, isBestScore, isBestDistance, completed, unlocked };
+    this.resultsCountdown = 1.5;
+  }
+
+  /** Shows the results panel once the death animation has played out. */
+  private updateDeathSequence(dt: number): void {
+    if (!this.pendingResults) return;
+    this.resultsCountdown -= dt;
+    if (this.resultsCountdown > 0) return;
+    const results = this.pendingResults;
+    this.pendingResults = null;
+    if (this.state.is(GameState.TUTORIAL)) this.state.set(GameState.PLAYING);
+    if (!this.state.is(GameState.PLAYING)) return;
+    this.state.set(GameState.GAME_OVER);
+    this.ui.showResults(results.stats, results.isBestScore, results.isBestDistance,
+      results.completed, results.unlocked);
+    this.ui.onState(GameState.GAME_OVER);
   }
 
   private togglePause(): void {
@@ -304,7 +337,11 @@ export class Game {
     this.animator.play('menuIdle', true);
     this.player.reset();
     this.track.reset(this.seed);
+    // reset() empties the world; prime it again so the menu has a backdrop.
+    this.track.update(0, 0, CFG.speed.base);
     this.vfx.reset();
+    this.pendingResults = null;
+    this.scoringFrozen = false;
     this.audio.setMusic('menu');
     void this.audio.resume();
   }
@@ -403,6 +440,7 @@ export class Game {
 
     const advanced = s.distance - previousDistance;
     this.difficulty.update(s.distance, dt);
+    this.updateDeathSequence(dt);
     this.track.update(dt, s.distance, s.speed);
 
     // Collectibles.
@@ -424,9 +462,11 @@ export class Game {
     this.vfx.setShield(this.powerUps.shielded);
     this.vfx.setMagnet(this.powerUps.magnetActive);
 
-    // Scoring and progression.
-    this.score.update(dt, s.distance, s.speed);
-    this.missions.update(this.score.stats, this.save.state.runs);
+    // Scoring and progression. Both stop dead the moment the player does.
+    if (!this.scoringFrozen) {
+      this.score.update(dt, s.distance, s.speed);
+      this.missions.update(this.score.stats, this.save.state.runs);
+    }
 
     // Presentation.
     const speedT = Math.min(1, Math.max(0, (s.speed - CFG.speed.base) / (CFG.speed.max - CFG.speed.base)));

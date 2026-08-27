@@ -144,6 +144,16 @@ On top of survivability it enforces a reaction guarantee: at the point the
 player must commit, they had at least `reactionDistance` of clear approach in
 a lane they could have been standing in.
 
+A result is `survivable` only if a route exists **and** the reaction guarantee
+holds; a route that exists but crowds two decisions too close together comes
+back flagged `rushed`, which is a different thing from impossible.
+
+Three things about this are easy to get wrong, and all three were:
+falling off a roof is a free fall from rest, not a point on the jump arc;
+a slide is a supported state and has to check for support like any other; and
+the run-up to an obstacle extends back into the previous segment, so measuring
+it from the module boundary treats every edge as a wall.
+
 If a segment fails, the generator removes the obstacles the solver flagged and
 retries; if it still fails, it tries a different template; if all else fails it
 ships a clean segment. **An unfair pattern cannot reach the player.**

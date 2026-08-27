@@ -55,10 +55,13 @@ export interface HitResult {
  */
 function surfaceOf(o: ActiveObstacle, z: number): number {
   const halfD = o.def.depth / 2;
-  const top = o.baseY + o.def.yOffset + o.def.height / 2;
-  if (!o.def.slope) return top;
+  const rise = o.def.yOffset + o.def.height / 2;
+  if (!o.def.slope) return o.baseY + rise;
+  // The ramp's rise is relative to whatever it stands on, so baseY is added
+  // once, outside the interpolation. Adding it inside as well happened to be
+  // harmless only because every obstacle currently spawns at baseY 0.
   const t = Math.min(1, Math.max(0, (z - (o.z - halfD)) / o.def.depth));
-  return o.baseY + top * t;
+  return o.baseY + rise * t;
 }
 
 function obstacleBounds(o: ActiveObstacle): { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number } {

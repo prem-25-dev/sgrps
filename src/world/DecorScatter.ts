@@ -28,6 +28,27 @@ interface Placed {
   speed: number;
 }
 
+/** Distinct building looks per archetype. Bounds the building pool. */
+const BUILDING_SEEDS = [10453, 28871, 51219, 77431];
+/** Massing bands, so a zone's continuous scale does not create a new key. */
+const SCALE_BANDS = [0.6, 0.9, 1.3];
+/** Day and night lighting, likewise. */
+const NIGHT_BANDS = [0.1, 0.8];
+/** Distinct looks per planting and vehicle type. */
+const VARIANTS_PER_PROP = 4;
+const VARIANT_SEEDS = [733, 2141, 5387, 9091];
+
+/** Nearest band index for a continuous value. */
+function band(value: number, bands: number[]): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < bands.length; i++) {
+    const d = Math.abs(bands[i] - value);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
 const PROPS_BY_TAG: Record<string, PropId[]> = {};
 for (const id of PROP_IDS) {
   for (const tag of PROP_TAGS[id]) {
@@ -59,14 +80,23 @@ export class DecorScatter {
   readonly root = new THREE.Group();
   private placed: Placed[] = [];
 
+  /**
+   * Pool keys must come from a small fixed set.
+   *
+   * These keys originally embedded a per-instance seed, so every building was
+   * its own key: nothing was ever reused and the pool grew without bound —
+   * measured at 1,236 retained building meshes after 17 km. Scale and night
+   * are now quantised into bands and the seed into a handful of variants, so
+   * the whole decor layer converges on a fixed working set.
+   */
   private buildings = new KeyedPool<THREE.Object3D>(
     (key) => {
-      const [archetype, seed, scale, night] = key.split('|');
+      const [archetype, variant, scaleBand, nightBand] = key.split('|');
       return buildBuilding({
         archetype: archetype as never,
-        seed: Number(seed),
-        scale: Number(scale),
-        night: Number(night),
+        seed: BUILDING_SEEDS[Number(variant)],
+        scale: SCALE_BANDS[Number(scaleBand)],
+        night: NIGHT_BANDS[Number(nightBand)],
       });
     },
     (o) => { o.visible = true; },
@@ -81,8 +111,8 @@ export class DecorScatter {
 
   private vegetation = new KeyedPool<THREE.Object3D>(
     (key) => {
-      const [id, seed] = key.split('|');
-      return buildVegetation(id as VegetationId, Number(seed));
+      const [id, variant] = key.split('|');
+      return buildVegetation(id as VegetationId, VARIANT_SEEDS[Number(variant)]);
     },
     (o) => { o.visible = true; },
     (o) => { o.visible = false; o.parent?.remove(o); },
@@ -90,8 +120,8 @@ export class DecorScatter {
 
   private vehicles = new KeyedPool<THREE.Object3D>(
     (key) => {
-      const [id, seed] = key.split('|');
-      return buildVehicle(id as VehicleId, Number(seed));
+      const [id, variant] = key.split('|');
+      return buildVehicle(id as VehicleId, VARIANT_SEEDS[Number(variant)]);
     },
     (o) => { o.visible = true; },
     (o) => { o.visible = false; o.parent?.remove(o); },
@@ -113,8 +143,8 @@ export class DecorScatter {
       // --- Buildings: one plot per segment per side, set back from the track.
       if (rng.bool(0.85 * density)) {
         const archetype = archetypeForZone(zone.id, rng);
-        const seed = buildingSeed(zoneIndex, slot, side);
-        const key = `${archetype}|${seed}|${zone.buildingScale.toFixed(2)}|${night.toFixed(2)}`;
+        const variant = Math.abs(buildingSeed(zoneIndex, slot, side)) % BUILDING_SEEDS.length;
+        const key = `${archetype}|${variant}|${band(zone.buildingScale, SCALE_BANDS)}|${band(night, NIGHT_BANDS)}`;
         const object = this.buildings.acquire(key);
         const footprint = (object.userData.footprint as { width: number; depth: number } | undefined) ?? { width: 14, depth: 14 };
         const z = startZ + rng.range(2, length - 2);
@@ -155,7 +185,7 @@ export class DecorScatter {
       const vegPool = ZONE_VEGETATION[zone.id] ?? ['VEG_Shrub'];
       for (let i = 0; i < vegCount; i++) {
         const id = rng.pick(vegPool);
-        const key = `${id}|${rng.int(1, 9999)}`;
+        const key = `${id}|${rng.int(0, VARIANTS_PER_PROP)}`;
         const object = this.vegetation.acquire(key);
         const z = startZ + rng.range(0, length);
         object.position.set(side * (TRACK_HALF_WIDTH + rng.range(4, 16)), 0, z - startZ);
@@ -168,7 +198,7 @@ export class DecorScatter {
       // --- Background traffic on the service road.
       if (rng.bool(0.32 * density * (zone.id === 'ZONE_Industrial' || zone.id === 'ZONE_Construction' ? 1.4 : 1))) {
         const id = rng.pick(VEHICLE_IDS);
-        const key = `${id}|${rng.int(1, 999)}`;
+        const key = `${id}|${rng.int(0, VARIANTS_PER_PROP)}`;
         const object = this.vehicles.acquire(key);
         const z = startZ + rng.range(0, length);
         object.position.set(side * (TRACK_HALF_WIDTH + rng.range(6.5, 9)), 0, z - startZ);

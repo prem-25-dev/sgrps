@@ -7,6 +7,13 @@ export type Action = 'left' | 'right' | 'jump' | 'slide' | 'pause' | 'confirm';
 
 type Listener = (action: Action) => void;
 
+/** True when the event began on a piece of interface rather than the game. */
+function isInteractive(target: EventTarget | null): boolean {
+  const node = target as Element | null;
+  if (!node || typeof node.closest !== 'function') return false;
+  return !!node.closest('button, input, select, textarea, a, .switch, .panel, #ui .screen:not(#hud)');
+}
+
 export interface InputSettings {
   swipeThreshold: number;
   invertVertical: boolean;
@@ -47,7 +54,11 @@ export class InputManager {
     const onTouchEnd = (e: TouchEvent) => {
       if (!this.enabled || !this.touchStart) return;
       const t = e.changedTouches[0];
-      this.resolveSwipe(t.clientX - this.touchStart.x, t.clientY - this.touchStart.y);
+      this.resolveSwipe(
+        t.clientX - this.touchStart.x,
+        t.clientY - this.touchStart.y,
+        isInteractive(e.target),
+      );
       this.touchStart = null;
     };
 
@@ -57,7 +68,11 @@ export class InputManager {
     };
     const onPointerUp = (e: PointerEvent) => {
       if (!this.enabled || e.pointerType === 'touch' || !this.pointerStart) return;
-      this.resolveSwipe(e.clientX - this.pointerStart.x, e.clientY - this.pointerStart.y);
+      this.resolveSwipe(
+        e.clientX - this.pointerStart.x,
+        e.clientY - this.pointerStart.y,
+        isInteractive(e.target),
+      );
       this.pointerStart = null;
     };
 
@@ -79,11 +94,15 @@ export class InputManager {
     ];
   }
 
-  private resolveSwipe(dx: number, dy: number): void {
+  private resolveSwipe(dx: number, dy: number, overUi: boolean): void {
     const threshold = this.settings.swipeThreshold;
     const ay = this.settings.invertVertical ? -dy : dy;
     if (Math.abs(dx) < threshold && Math.abs(ay) < threshold) {
-      this.fire('confirm');
+      // A tap is only "confirm" when it lands on the play surface. Menu
+      // buttons bubble their pointer events up to the window, and pointerup
+      // beats click, so treating every tap as confirm made every button on
+      // the main menu start a run instead.
+      if (!overUi) this.fire('confirm');
       return;
     }
     if (Math.abs(dx) > Math.abs(ay)) this.fire(dx > 0 ? 'right' : 'left');

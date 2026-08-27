@@ -168,6 +168,46 @@ typecheck and a browser playtest without being noticed:
   including the acceleration term in the position update, which is exact for
   constant acceleration.
 
+## Bugs a code review caught that the tests did not
+
+A review pass over the whole diff found twelve issues the suites missed.
+The two that mattered most were verified with a repro before being fixed:
+
+- **The fairness guarantee was unsound.** A player who ran off the end of a
+  roof was modelled as a point on the *jump* arc, which parked them 2.7 m
+  above the roof for the whole descent instead of falling. A sliding player
+  was worse: nothing checked support during a slide, so a slide carried the
+  roof's height out over the gap beyond it and hovered there for its full
+  length. The solver approved a route that kills the player; an independent
+  brute-force simulator disagreed with it. Free fall is now its own mode with
+  its own arc, and slides check for support like any other grounded state.
+- **The reaction guarantee was never enforced.** `worstApproach` was computed,
+  returned and stored — and never once compared to the requirement. The
+  promise stated in the design doc simply was not kept. Enforcing it also
+  exposed that the run-up was measured from the segment boundary, treating
+  every module edge as a wall, and that a segment with no obstacles at all was
+  judged against a requirement it could not meet.
+- **The decor pools never reused anything.** Building, planting and vehicle
+  keys embedded a per-instance seed, so every instance was its own pool key:
+  1,236 retained building meshes after 17 km, growing linearly forever. The
+  streaming soak missed it because pooled objects are detached from the scene
+  graph, which is all it counted. Keys are now drawn from a bounded set and
+  the soak asserts it.
+- **Pausing during the death animation soft-locked the run.** The results
+  panel was scheduled on a wall-clock timeout, which fires while paused; a
+  tab-switch during the 1.5 s death sequence left a dead player in a frozen
+  PLAYING state. It is driven from the frame loop now.
+- **Every button on the main menu started a run.** A tap under the swipe
+  threshold fired `confirm`, and menu clicks bubble to the window — where
+  `pointerup` beats `click`. CI never saw it because the playtest drives
+  buttons with `el.click()`, which emits no pointer events.
+- Smaller ones: the game-over music was stopped on the line after it was
+  started; score kept accruing for 1.5 s after death, so the results panel
+  could show more than was banked; returning to the menu left the world empty;
+  the saved invert-swipe preference was ignored until something was toggled;
+  and the runtime collider added `baseY` twice for slopes, harmless only
+  because every obstacle currently spawns at zero.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

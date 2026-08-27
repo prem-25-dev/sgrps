@@ -21,6 +21,8 @@ const ob = (lane: number, z: number, minY: number, maxY: number, depth = 0.5, st
 
 console.log('Fairness solver:');
 check('empty segment', v.solve([], opts()).survivable, true);
+check('an empty segment is never judged rushed', v.solve([], opts()).rushed, false);
+check('a lone obstacle is never judged rushed', v.solve([ob(1, 4, 0, 1.0)], opts()).rushed, false);
 check('one jumpable barrier', v.solve([ob(1, 12, 0, 1.0)], opts()).survivable, true);
 check('one slideable beam', v.solve([ob(1, 12, 1.12, 1.7)], opts()).survivable, true);
 check('two lanes blocked full height', v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7)], opts()).survivable, true);
@@ -30,8 +32,18 @@ check('low overhead can be cleared over the top when jumpable',
   v.solve([ob(1, 12, 1.12, 1.9)], opts()).survivable, true);
 check('jump-then-slide too close (0.6m apart)',
   v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7), ob(2, 12, 0, 1.0), ob(2, 12.6, 1.2, 2.8)], opts()).survivable, false);
-check('jump-then-slide with room (7m apart)',
-  v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7), ob(2, 12, 0, 1.0), ob(2, 19, 1.2, 2.8)], opts()).survivable, true);
+// 7 m apart is physically survivable but leaves only 0.44 s to react at
+// 16 m/s, under the 0.74 s the guarantee promises at this difficulty. The
+// solver must reject it, and say why.
+{
+  const rushedCase = v.solve(
+    [ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7), ob(2, 12, 0, 1.0), ob(2, 19, 1.2, 2.8)], opts());
+  check('jump-then-slide 7m apart is rejected as rushed', rushedCase.survivable, false);
+  check('a rushed pattern is reported as rushed, not impossible', rushedCase.rushed, true);
+}
+check('jump-then-slide with real room (14m apart)',
+  v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7), ob(2, 12, 0, 1.0), ob(2, 26, 1.2, 2.8)],
+    { ...opts(), length: 32 }).survivable, true);
 check('locked into blocked lane at entry',
   v.solve([ob(1, 3, 0, 2.7)], { ...opts([1]), reactionDistance: 8 }).survivable, false);
 check('train blocks lane, roof standable',
@@ -47,6 +59,22 @@ check('ramp makes the train roof reachable',
   ], opts()).survivable, true);
 check('container is reachable by jumping (2.55m)',
   v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.55, 2.4, true), ob(2, 12, 0, 2.7)], opts()).survivable, true);
+
+// Regression: a player who runs off the end of a roof must fall, not hover.
+// Modelling the drop as a point on the jump arc parked them 2.7 m above the
+// roof for the whole descent; carrying a slide's surface past the roof edge
+// did the same for the length of the slide. Either one let the solver approve
+// a route that kills the player.
+{
+  const roofRun = [
+    ob(1, 6.5, 0, 2.55, 9, true),   // standable roof, z 2..11
+    ob(0, 15, 0, 2.7, 18),          // walls either side from z 6
+    ob(2, 15, 0, 2.7, 18),
+    ob(1, 17, 0, 2.4, 10),          // solid block past the roof, z 12..22
+  ];
+  const r = v.solve(roofRun, opts());
+  check('running off a roof falls rather than hovering', r.survivable, false);
+}
 
 const wall = v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7)], opts());
 check('exit lanes exclude blocked lanes', wall.exitLanes.length > 0 && wall.exitLanes.includes(2), true);
@@ -71,8 +99,12 @@ console.log('\nTemplate sweep (all templates x 5 speeds):');
           standable: !!d.standable, slope: !!d.slope,
         });
       }
+      // Difficulty tracks speed in a real run, so pair them here rather than
+      // testing a template's easiest reaction window at the fastest speed.
+      const difficultyForSpeed = Math.min(1, Math.max(0, (speed - CFG.speed.base) / (CFG.speed.max - CFG.speed.base)));
       const r = new SegmentValidator().solve(obs, {
-        length: 24, speed, entryLanes: [0, 1, 2], reactionDistance: reactionDistance(speed, tpl.minDifficulty),
+        length: 24, speed, entryLanes: [0, 1, 2],
+        reactionDistance: reactionDistance(speed, Math.max(tpl.minDifficulty, difficultyForSpeed)),
       });
       if (!r.survivable) { unfair++; console.log(`  UNFAIR ${tpl.id} @ ${speed} m/s -> ${r.blockers.join(', ')}`); }
     }
