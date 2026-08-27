@@ -141,8 +141,9 @@ export class CollisionSystem {
     for (const o of this.obstacles) {
       if (o.nearMissed || o.hit) continue;
       const b = obstacleBounds(o);
-      // Did the player cross the obstacle's centre plane this frame?
-      if (!(prevZ > o.z && p.z <= o.z)) continue;
+      // Did the player cross the obstacle's centre plane this frame? Distance
+      // increases as the run goes on, so the crossing is prevZ < centre <= now.
+      if (!(prevZ < o.z && p.z >= o.z)) continue;
       o.passed = true;
       const gapX = Math.max(0, Math.max(b.minX - (p.x + p.halfWidth), (p.x - p.halfWidth) - b.maxX));
       const clearedOver = p.y >= b.maxY - 0.05 && b.maxY > CFG.world.groundY + 0.15;

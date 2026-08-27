@@ -146,6 +146,24 @@ The runtime collider (`CollisionSystem`) implements the *same* model — ramp
 slopes, standable tops, slide heights — because a proof against a different
 model would be worthless.
 
+## Physics and the solver must agree
+
+The fairness solver proves survivability against the analytic jump arc,
+`y = v·t + ½g·t²`. The game therefore has to produce that same arc, which
+means including the acceleration term in the position update:
+
+```ts
+s.y += s.verticalVelocity * dt + 0.5 * accel * dt * dt;
+s.verticalVelocity += accel * dt;
+```
+
+Stepping the velocity first and the position second — the obvious way to
+write it — undershoots the apex by `v·dt/2`. That is 0.15 m at 60 fps and
+0.30 m at 30, so the jump height would vary with the frame rate *and* fall
+short of what the solver proved. Any future change to player physics has to
+keep the two models in step; `npm run test:gameplay` asserts both the apex
+height and its frame-rate independence.
+
 ## The tutorial
 
 `GameState.TUTORIAL` is a real run, not a separate mode: `simulating` is true

@@ -51,8 +51,15 @@ export const CFG = {
     laneChangeDuration: 0.17,
     /** Horizontal half width used for collision against obstacles. */
     halfWidth: 0.32,
-    /** A miss inside this radius counts as a near miss. */
-    nearMissRadius: 0.95,
+    /**
+     * A miss inside this lateral gap counts as a near miss.
+     *
+     * Must exceed the clearance left by dodging into the next lane, or the
+     * signature move of the genre never scores: a 2.2 m obstacle in a 2.4 m
+     * lane leaves 2.4 - 1.1 - 0.32 = 0.98 m. Two lanes away is 3.38 m, well
+     * outside, so a lazy dodge still earns nothing.
+     */
+    nearMissRadius: 1.15,
     /** Invulnerability window after a non fatal stumble. */
     stumbleInvuln: 0.9,
     /** Number of stumbles survivable before the run ends. */

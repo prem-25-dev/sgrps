@@ -22,6 +22,18 @@ and −Z.
 
 Pass criterion: **zero** shipped segments without a survivable route.
 
+### `npm run test:gameplay` — gameplay integration
+Drives the real PlayerController, CollisionSystem, CollectibleManager,
+PowerUpManager and ScoreManager at a fixed timestep with no renderer, in
+hand-built scenarios where the right answer is known. 46 assertions covering
+movement, jump physics, collision outcomes, coins, the magnet, every
+power-up, scoring and combo decay, and the rooftop route.
+
+This is the suite the browser playtest cannot replace: under software
+rasterisation the simulation runs at a fraction of real time, so a run never
+gets far enough to exercise a magnet, a shield or a train roof. It found three
+bugs on its first run — see "Bugs this suite has caught" below.
+
 ### `npm run test:tutorial` — first-run lesson
 Drives the step machine headlessly at a fixed timestep, because the browser
 cannot: under software rendering the simulation runs at roughly a fifth of
@@ -103,6 +115,27 @@ Pass criterion: LOD0 within the 20k–60k budget, all weights summing to 1.
 - [ ] Quality setting visibly changes shadows, density and resolution
 - [ ] Automatic quality drop triggers on sustained slow frames
 - [ ] No memory growth over a 10-minute run
+
+## Bugs this suite has caught
+
+Recorded because each one had shipped through a green build, a clean
+typecheck and a browser playtest without being noticed:
+
+- **Near misses never fired.** The crossing test read `prevZ > centre && now
+  <= centre`, but distance increases, so the condition was unsatisfiable. A
+  headline scoring feature — with VFX, audio, a mission and an achievement
+  attached — had never worked.
+- **The near-miss radius was too small to ever trigger on a lane dodge.** At
+  0.95 m it sat just under the 0.98 m clearance left by dodging a 2.2 m
+  obstacle into an adjacent 2.4 m lane, so the signature move of the genre
+  scored nothing. Now 1.15 m, which still excludes a two-lane berth at 3.38 m.
+- **Jump height depended on the frame rate.** Stepping velocity before
+  position undershoots the apex by `v·dt/2`: 2.55 m instead of the configured
+  2.70 m at 60 fps, and lower still at 30. That also put the game out of step
+  with the fairness solver, which proves against the analytic arc — so the
+  solver could approve a clearance the game would not deliver. Fixed by
+  including the acceleration term in the position update, which is exact for
+  constant acceleration.
 
 ## Known limitations
 

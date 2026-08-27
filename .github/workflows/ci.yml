@@ -37,6 +37,9 @@ jobs:
       - name: Fairness engine
         run: npm run test:fairness
 
+      - name: Gameplay integration
+        run: npm run test:gameplay
+
       - name: Tutorial step machine
         run: npm run test:tutorial
 

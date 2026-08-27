@@ -220,9 +220,15 @@ export class PlayerController {
       // Releasing jump early cuts the arc, giving variable jump height.
       const cutting = s.verticalVelocity > 0 && !this.input.isHeld('jump');
       const gravity = CFG.jump.gravity * (cutting ? CFG.jump.cutMultiplier : 1);
-      s.verticalVelocity += gravity * dt;
-      if (s.sliding) s.verticalVelocity += CFG.slide.airSnap * dt;
-      s.y += s.verticalVelocity * dt;
+      const accel = gravity + (s.sliding ? CFG.slide.airSnap : 0);
+      // Integrate position with the acceleration term included. Stepping the
+      // velocity first and the position second undershoots the apex by
+      // v*dt/2, which both lowers the jump below its configured height and
+      // makes that height depend on the frame rate — so a player at 30 fps
+      // would clear less than one at 60. This form is exact for constant
+      // acceleration, and matches the arc the fairness solver proves against.
+      s.y += s.verticalVelocity * dt + 0.5 * accel * dt * dt;
+      s.verticalVelocity += accel * dt;
 
       const landingSurface = this.collision.groundHeight(s.x, s.distance, s.y);
       if (s.y <= landingSurface && s.verticalVelocity <= 0) {
