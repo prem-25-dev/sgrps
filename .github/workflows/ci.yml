@@ -52,6 +52,9 @@ jobs:
       - name: Visual effects
         run: npm run test:vfx
 
+      - name: Zones
+        run: npm run test:zones
+
       - name: Tutorial step machine
         run: npm run test:tutorial
 

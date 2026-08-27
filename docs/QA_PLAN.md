@@ -542,6 +542,36 @@ Verified by sabotage: replacing the coercion with the migration someone would
 naively write — `if (parsed.version !== SAVE_VERSION) reset()` — fails six of
 the nine, naming exactly what was lost.
 
+## Six zones nobody had ever seen
+
+The game runs through seven zones over five and a half kilometres, and CI never
+gets past the first: under software rasterisation a browser run reaches about
+60 m. Six zones of content — palettes, buildings, props, vegetation, the whole
+night city — went the entire build without anything, human or automated, ever
+looking at them.
+
+They were photographed by hand, by teleporting the run distance into each zone
+with the player made invulnerable (the teleport otherwise drops them straight
+into whatever is spawned there). All seven are correct: distinct palettes,
+coherent content, no floating geometry, no missing ground, and the Neon zone —
+lit windows and silhouetted towers against a purple-black sky — is the best
+looking of them.
+
+`test:zones` keeps them that way without depending on pixels, which are not
+stable enough in this environment to assert on. It checks the schedule visits
+every zone in order and then deliberately cycles (so a long run keeps varying
+rather than freezing in the last one), that no two zones share a fog or ground
+colour, that no zone fogs out past the camera's far plane, and that every zone
+actually places decor — 77 to 105 objects each. A zone whose densities were
+typo'd to zero would otherwise ship as an empty corridor nobody would notice
+until a player arrived.
+
+Writing it produced one false alarm worth recording: the first version asserted
+the schedule ends after the last zone, and failed. The cycling is deliberate
+and commented as such in `zoneAt`. The test was wrong, not the code — which is
+the same lesson as the rest of this document, arriving from the other
+direction.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and
