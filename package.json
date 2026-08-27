@@ -21,7 +21,8 @@
     "test:animation": "esbuild scripts/test-animation.ts --bundle --platform=node --format=esm --outfile=.tmp/anim.mjs && node .tmp/anim.mjs",
     "test:differential": "esbuild scripts/test-fairness-differential.ts --bundle --platform=node --format=esm --outfile=.tmp/diff.mjs && node .tmp/diff.mjs",
     "test:ui-fit": "node scripts/test-ui-fit.mjs",
-    "test:audio": "node scripts/test-audio.mjs"
+    "test:audio": "node scripts/test-audio.mjs",
+    "test:touch": "node scripts/test-touch.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

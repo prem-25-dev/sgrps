@@ -453,6 +453,26 @@ so the build kept the healthy bundle and the test "passed" against code that
 was never broken. A green run against a failed build proves nothing, and the
 build output has to be read, not assumed.
 
+## Playing with a thumb
+
+Swiping is the primary input on a phone, and it had no coverage. `test:ui-fit`
+checks that panels fit a phone screen, which says nothing about whether the
+player can move; the gameplay suite drives the real `PlayerController` but only
+ever presses keys.
+
+The risk is concrete rather than theoretical. Taps and swipes share a code path
+with the menu — a tap on the play surface means "confirm" — and an earlier bug
+had *every* tap counting as confirm, so every button on the main menu started a
+run. The guard that fixed it sits directly in the touch handler, which makes
+this the part of the input system most likely to break silently for the players
+least able to work around it.
+
+`test:touch` drives a real phone viewport with synthetic touches: a tap starts
+a run, left and right change lane, up jumps, down slides, and a movement under
+the swipe threshold does none of those. Everything passed first time — no bug
+here — but inverting the horizontal mapping makes it report `lane 1 -> 2` on a
+left swipe, so it is a real gate rather than a formality.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

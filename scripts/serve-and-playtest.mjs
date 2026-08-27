@@ -17,6 +17,7 @@ for (const script of [
   'scripts/playtest.mjs',
   'scripts/test-ui-fit.mjs',
   'scripts/test-audio.mjs',
+  'scripts/test-touch.mjs',
   'scripts/test-tutorial.mjs',
 ]) {
   console.log(`\n=== ${script} ===`);
