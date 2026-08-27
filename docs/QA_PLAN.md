@@ -519,6 +519,29 @@ invisible to an object count. Hammering all 23 presets for 400 frames peaks at
 Verified by sabotage: silencing `VFX_Debris` and `VFX_Steam` makes the test
 name both.
 
+## A guarantee the docs promised and nothing tested
+
+The persistence suite's own header has always said it covers "a payload from
+an older version". It did not. Every fixture carried the current version
+number, so the one scenario that costs a real player their history — upgrading
+the game — was never exercised. The claim had been sitting in the file since
+the suite was written.
+
+`SaveManager.load` deliberately ignores the stored version and coerces field by
+field, which makes it forward-compatible by construction rather than by a
+ladder of migrations. That turns out to be correct, and is now pinned down: a
+v1 payload keeps its score, runs, coins and achievements; fields added since
+get defaults rather than `undefined`; an unknown field from an old build is
+ignored; and the save is re-stamped to the current version on the next flush.
+
+A save from a *newer* version is covered too, which happens whenever someone
+opens an older deployment or a cached tab. Losing someone's history because
+their save came from the future would be worse than any corruption case.
+
+Verified by sabotage: replacing the coercion with the migration someone would
+naively write — `if (parsed.version !== SAVE_VERSION) reset()` — fails six of
+the nine, naming exactly what was lost.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

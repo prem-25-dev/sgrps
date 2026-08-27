@@ -1,6 +1,6 @@
 import { AchievementManager, MissionManager } from '../src/progression/MissionManager';
 import { ScoreManager } from '../src/progression/ScoreManager';
-import { SaveManager, DEFAULT_SETTINGS } from '../src/save/SaveManager';
+import { SAVE_VERSION, SaveManager, DEFAULT_SETTINGS } from '../src/save/SaveManager';
 import { MISSION_DEFS, ACHIEVEMENT_DEFS } from '../data/missions';
 import { DifficultyManager } from '../src/procedural/DifficultyManager';
 import { zoneAt, ZONES } from '../data/difficulty/zones';
@@ -82,6 +82,64 @@ console.log('Persistence:');
   check('a corrupt payload falls back to defaults', save.state.runs === 0, `runs ${save.state.runs}`);
   check('the corrupt payload is replaced', (store.raw(STORE_KEY) ?? '').startsWith('{"version"'),
     `${(store.raw(STORE_KEY) ?? '').slice(0, 20)}`);
+}
+{
+  // A save written by an older build of the game. The docstring above has
+  // always promised this case and nothing actually covered it: every fixture
+  // used the current version number, so the one scenario that costs a real
+  // player their history — upgrading the game — was never exercised.
+  //
+  // `load` deliberately ignores the stored version and coerces field by field,
+  // which makes it forward-compatible by construction rather than by a ladder
+  // of migrations. These assertions pin that behaviour down.
+  freshStore().poke(STORE_KEY, JSON.stringify({
+    version: 1,
+    bestScore: 3100,
+    bestDistance: 1480,
+    coins: 220,
+    totalCoins: 5400,
+    runs: 63,
+    achievements: ['ACH_FirstRun', 'ACH_Marathon'],
+    // A field this build no longer knows about.
+    favouriteHat: 'trilby',
+    // Fields added after v1 are simply absent.
+  }));
+  const save = new SaveManager();
+  check('a v1 save keeps the best score', save.state.bestScore === 3100, `${save.state.bestScore}`);
+  check('a v1 save keeps the run count', save.state.runs === 63, `${save.state.runs}`);
+  check('a v1 save keeps banked coins', save.state.totalCoins === 5400, `${save.state.totalCoins}`);
+  check('a v1 save keeps unlocked achievements',
+    save.state.achievements.length === 2, JSON.stringify(save.state.achievements));
+  check('fields added since v1 get defaults rather than undefined',
+    save.state.totalNearMisses === 0 && save.state.topSpeed === 0
+      && Number.isFinite(save.state.bestNoHitDistance),
+    `nearMisses ${save.state.totalNearMisses}, topSpeed ${save.state.topSpeed}`);
+  check('settings added since v1 get defaults',
+    typeof save.state.settings.reducedMotion === 'boolean'
+      && typeof save.state.settings.quality === 'string',
+    JSON.stringify(save.state.settings));
+  save.flush(true);
+  check('the upgraded save is re-stamped to the current version',
+    JSON.parse(store.raw(STORE_KEY) ?? '{}').version === SAVE_VERSION,
+    `${JSON.parse(store.raw(STORE_KEY) ?? '{}').version}`);
+}
+{
+  // A save from a *newer* build, which happens whenever someone opens an older
+  // deployment or a cached tab. Losing a player's history because their save
+  // is from the future would be worse than any corruption case.
+  freshStore().poke(STORE_KEY, JSON.stringify({
+    version: SAVE_VERSION + 5,
+    bestScore: 999,
+    runs: 12,
+    totalCoins: 77,
+    somethingFromTheFuture: { nested: true },
+  }));
+  const save = new SaveManager();
+  check('a save from a newer version still loads',
+    save.state.bestScore === 999 && save.state.runs === 12,
+    `${save.state.bestScore} / ${save.state.runs}`);
+  check('a save from a newer version keeps banked coins',
+    save.state.totalCoins === 77, `${save.state.totalCoins}`);
 }
 {
   // Hostile or partial values must be rejected field by field, not trusted.
