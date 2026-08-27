@@ -572,6 +572,80 @@ and commented as such in `zoneAt`. The test was wrong, not the code — which is
 the same lesson as the rest of this document, arriving from the other
 direction.
 
+## Rebindable controls, and the hole they exposed
+
+Rebinding was added for players who cannot comfortably reach the default keys.
+Storing bindings meant storing a much richer shape than the settings had held
+before — and that turned out to matter more than the feature.
+
+Settings were the one part of the save that was never parsed defensively.
+Every top-level field went through a validator; the settings object was spread
+in whole. So a `quality` value outside the three known levels reached
+`QUALITY_PROFILE[quality]` as `undefined` on the first boot frame and threw:
+
+```
+quality        -> "ultra"
+profile lookup -> undefined
+BOOT THROWS    -> Cannot read properties of undefined (reading 'pixelRatio')
+```
+
+Because the same bad value is read again on every reload, the game would stay
+dead until the player cleared their site data — from a rolled-back build, a
+hand-edited entry, or any save written by a future version whose enum had
+grown. The file's own docstring promised the opposite: that a corrupted payload
+"degrades to defaults rather than breaking the boot sequence". It did, for
+everything except the field that decides how the game renders.
+
+Every settings field is now validated individually, on load and on live change
+alike, and bindings have a rule of their own: an action left with no keys gets
+its defaults back, because an action with no key is one the player can never
+perform again — a runner who cannot jump, with nothing on screen to say why.
+
+The rebind rules that keep that true are pure functions rather than click
+handlers (`rebind` in `SaveManager`), because the cases worth testing are the
+ones a click test would never think to try: taking a key from another action,
+refusing to take its *last* key, collapsing a duplicate, and a slot index from
+a stale render.
+
+### What the sabotage passes caught
+
+Five deliberate reversions, one per guard, to check the new suite actually
+watches them. Four failed loudly. The fifth passed — and it was the one that
+mattered: reverting `load()` to the original blind spread changed nothing,
+because every settings assertion called the validator *directly* and none went
+through the boot path where the bug had lived. The suite tested the fix and not
+the defect. Adding a stored payload and constructing a `SaveManager` over it
+closed that, and the reversion then failed three assertions.
+
+### And a regression it caught in return
+
+The new Controls section made the settings panel taller than a 1024x600 laptop
+and a phone in landscape, and `test:ui-fit` failed exactly as designed — the
+suite written after game-over buttons shipped below the fold.
+
+This one was a false alarm, but only halfway. Panels have carried
+`overflow-y: auto` all along, and measuring showed the Reset button coming
+fully into view at both viewports once scrolled. So the content was reachable;
+the check's proxy — "every button's rectangle lies inside the viewport" — had
+simply stopped matching the invariant it stood for, which is *reachable*. It
+now scrolls each button into view first, the way a player does with a wheel.
+
+Relaxing a check that has just caught something needs its own guard, so the
+original bug was reproduced against the relaxed version: it still fails, eight
+assertions across four panels. Then the second sabotage — removing the
+scrollbar entirely — and that one slipped through, because `scrollIntoView`
+moves an `overflow: hidden` element perfectly well even though no wheel can.
+The reachability check was therefore passing on a panel whose buttons real
+players could never see. A panel with more content than box now has to
+*declare* itself scrollable, which is the property a wheel actually depends on.
+
+### One thing the screenshots caught that no assertion did
+
+The capture state looks right on a phone — and on a phone there is no Escape
+key, and usually no keyboard at all. Tapping a chip started a rebind that only
+a keyboard could end. A tap anywhere else, or on the listening chip again, now
+abandons it.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

@@ -46,6 +46,9 @@ jobs:
       - name: Progression, persistence and difficulty
         run: npm run test:progression
 
+      - name: Controls, rebinding and settings validation
+        run: npm run test:controls
+
       - name: Animation quality
         run: npm run test:animation
 

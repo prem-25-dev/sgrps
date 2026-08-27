@@ -8,8 +8,24 @@
  * The browser suite did not notice, and could not have: it drives buttons with
  * el.click(), which works perfectly well on an element nobody can see or
  * reach. So this test checks geometry rather than behaviour. After the open
- * animation has settled, every button on every panel must lie inside the
- * viewport, and the panel itself must not overflow it.
+ * animation has settled, every button on every panel must be *reachable*, and
+ * the panel itself must not overflow the viewport.
+ *
+ * Reachable, rather than simply on screen. The two were the same thing while
+ * every panel fitted, and the check was written as the simpler one — but the
+ * settings panel grew a rebinding section and stopped fitting a 1024x600
+ * laptop, and the check called its buttons unreachable when scrolling brought
+ * them fully into view. Panels have carried `overflow-y: auto` all along, so
+ * that was a false alarm about a real change. Each button is now scrolled into
+ * view before it is measured, which is what a player does with a wheel.
+ *
+ * That relaxation needs a guard of its own, because `scrollIntoView` is not
+ * the same thing as a wheel: an `overflow: hidden` element still scrolls
+ * programmatically, so a panel that had quietly lost its scrollbar would pass
+ * reachability while stranding every button below the fold for real players.
+ * So a panel with more content than box must also *declare* itself scrollable.
+ * That gap was found by breaking the rule on purpose and watching this file
+ * fail to notice.
  *
  * The cause is worth remembering too. Panels are centred with
  * `transform: translate(-50%, -50%)`, and an animation's transform replaces
@@ -85,13 +101,33 @@ for (const vp of VIEWPORTS.filter((v) => !ONLY || v.label === ONLY)) {
       if (!screen.classList.contains('active')) return { notOpen: true };
       const pr = panel.getBoundingClientRect();
       if (pr.width < 1 || pr.height < 1) return { collapsed: true };
-      const offenders = [...screen.querySelectorAll('button')]
-        .map((b) => ({ text: b.textContent.trim(), r: b.getBoundingClientRect() }))
-        .filter(({ r }) => r.bottom > innerHeight + 1 || r.top < -1
-          || r.right > innerWidth + 1 || r.left < -1)
-        .map(({ text, r }) => `${text} at ${Math.round(r.top)}..${Math.round(r.bottom)}`);
+
+      // Taller content than box is only acceptable because the panel scrolls,
+      // and it has to be scrollable by the player rather than only by script:
+      // scrollTop moves under `overflow: hidden` too, so the computed style is
+      // the only thing that distinguishes a scrollbar from a clipped panel.
+      const clipped = panel.scrollHeight > panel.clientHeight + 1;
+      const overflowY = getComputedStyle(panel).overflowY;
+      const scrolls = !clipped || ['auto', 'scroll', 'overlay'].includes(overflowY);
+
+      const restore = panel.scrollTop;
+      const offenders = [];
+      for (const b of screen.querySelectorAll('button')) {
+        // What a player does with a wheel or a thumb before pressing it.
+        b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        const r = b.getBoundingClientRect();
+        if (r.bottom > innerHeight + 1 || r.top < -1
+          || r.right > innerWidth + 1 || r.left < -1) {
+          offenders.push(`${b.textContent.trim()} at ${Math.round(r.top)}..${Math.round(r.bottom)}`);
+        }
+      }
+      panel.scrollTop = restore;
+
       return {
         offenders,
+        scrolls,
+        clipped,
+        overflowY,
         overflows: pr.bottom > innerHeight + 1 || pr.top < -1,
         top: Math.round(pr.top), bottom: Math.round(pr.bottom), vh: innerHeight,
       };
@@ -101,8 +137,10 @@ for (const vp of VIEWPORTS.filter((v) => !ONLY || v.label === ONLY)) {
     if (report.notOpen) { check(`${vp.label}: ${id} actually opened`, false); return; }
     if (report.collapsed) { check(`${vp.label}: the ${id} panel has a size`, false); return; }
     check(`${vp.label}: ${id} actually opened`, true);
-    check(`${vp.label}: every ${id} button is on screen`,
+    check(`${vp.label}: every ${id} button can be reached`,
       report.offenders.length === 0, report.offenders.join('; '));
+    check(`${vp.label}: the ${id} panel scrolls if it has to`,
+      report.scrolls, `content is taller than the panel but overflow-y is ${report.overflowY}`);
     check(`${vp.label}: the ${id} panel fits the viewport`,
       !report.overflows, `panel spans ${report.top}..${report.bottom} in ${report.vh}px`);
   };

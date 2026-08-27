@@ -33,6 +33,12 @@ asset store account, no Blender.
 | Slide | ↓ / S / Shift | swipe down |
 | Pause | Esc / P | — |
 
+Every keyboard binding above is a default, not a fixture. Settings → Controls
+rebinds any of them: click a key, press the one you want. Bindings are stored
+by physical position rather than by printed letter, so the defaults land on the
+same cluster on AZERTY and Dvorak as they do on QWERTY, and the panel asks the
+browser for your layout before naming a key.
+
 ## Tests
 
 ```bash
@@ -44,13 +50,26 @@ npm run playtest     # boots the real game in Chromium and plays it
 |---|---|
 | `test:geometry` | Swept surfaces have correct winding in every direction |
 | `test:fairness` | No unsurvivable pattern can reach the player (verified over 288 km) |
+| `test:differential` | The fairness solver's own escape routes replayed through the real physics |
 | `test:gameplay` | The game actually plays: movement, collision, coins, magnet, every power-up, scoring, rooftop route |
 | `test:progression` | Saves survive reloads and corruption; every mission and achievement is reachable |
+| `test:controls` | Rebinding keeps every action playable; no stored settings value can break boot |
 | `test:animation` | No NaN in the rig, feet stay on the deck, and a planted foot does not slide at any speed |
+| `test:vfx` | Every effect emits, the shared particle pool never overflows and always drains |
+| `test:zones` | All seven zones are distinct and none is an empty corridor |
 | `test:tutorial` | The first-run lesson advances, times out and hands back cleanly |
 | `test:soak` | World streaming pools plateau over 20 km — no leaks |
-| `playtest` | Real browser boot, play, death, restart, pause, all panels, zero console errors |
 | `test:hero` | Character LOD budgets and skin-weight normalisation |
+
+Five more run in a real browser, under `npm run playtest`:
+
+| Suite | What it proves |
+|---|---|
+| `playtest` | Real browser boot, play, death, restart, pause, all panels, zero console errors |
+| `test:ui-fit` | Every panel button is reachable at five viewports — the game can always be restarted or left |
+| `test:audio` | All 33 synthesised voices make a sound, and nothing puts NaN on the master bus |
+| `test:touch` | The game is playable with a thumb: tap, and every swipe direction |
+| `test:rebind` | A key rebound in the panel actually drives the character, and the one it replaced stops |
 
 CI runs all of these on every push and pull request
 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).

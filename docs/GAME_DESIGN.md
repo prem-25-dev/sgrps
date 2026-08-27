@@ -33,6 +33,23 @@ up to ×8. Playing safe is survivable. Playing safe is not how you score.
 | Slide | ↓, S or Shift | swipe down |
 | Pause | Esc or P | — |
 
+Those are defaults. Every one of them can be moved in Settings → Controls,
+which matters for anyone who cannot comfortably reach the keys a designer
+happened to pick: a player using one hand, a switch device, or simply a layout
+these defaults were not drawn for.
+
+Two rules keep rebinding from breaking the game rather than fixing it. A key
+can only mean one thing, so binding a key that another action holds takes it
+away from that action — unless it was that action's last key, which is refused
+and explained instead, because an action with no key is one the player can
+never perform again. And Enter is reserved: it operates the menus, including
+the menu that holds the rebinding controls.
+
+Bindings are stored as physical key positions (`KeyboardEvent.code`) rather
+than printed letters. That is why the default WASD cluster lands in the same
+place on AZERTY and Dvorak, and why the settings panel asks the browser for the
+real layout before it labels a key.
+
 Three things make the controls feel fair rather than twitchy:
 
 - **Coyote time** (0.11 s) — a jump pressed just after running off a train

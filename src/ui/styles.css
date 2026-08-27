@@ -275,6 +275,20 @@ button.small { padding: calc(var(--u) * 0.45) calc(var(--u) * 0.8); font-size: c
 .setting label { font-size: calc(var(--u) * 0.92); }
 .setting input[type="range"] { width: calc(var(--u) * 9); accent-color: var(--accent); }
 .setting select { font: inherit; background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--line); border-radius: calc(var(--radius) * 0.6); padding: calc(var(--u) * 0.3) calc(var(--u) * 0.5); }
+/* Key rebinding. Chips wrap so a long binding never pushes the row off a
+   narrow panel — the settings panel has to fit a phone. */
+.binding-row { align-items: flex-start; }
+.binding-keys { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 0.3); justify-content: flex-end; }
+.key-chip {
+  font: inherit; font-size: calc(var(--u) * 0.78); font-weight: 600;
+  min-width: calc(var(--u) * 2.2); padding: calc(var(--u) * 0.22) calc(var(--u) * 0.5);
+  background: rgba(255,255,255,0.06); color: var(--text);
+  border: 1px solid var(--line); border-radius: calc(var(--radius) * 0.5);
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.key-chip:hover { background: rgba(255,255,255,0.12); }
+.key-chip.listening { border-color: var(--accent); color: var(--accent); background: rgba(255,255,255,0.02); }
+
 .switch { position: relative; width: calc(var(--u) * 2.6); height: calc(var(--u) * 1.4); border-radius: 999px; background: rgba(255,255,255,0.14); cursor: pointer; transition: background 0.15s; flex: none; }
 .switch.on { background: var(--accent); }
 .switch::after {

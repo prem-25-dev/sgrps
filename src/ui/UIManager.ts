@@ -4,7 +4,9 @@ import { GameState } from '../core/Types';
 import { AudioManager } from '../audio/AudioManager';
 import { AchievementManager, MissionManager } from '../progression/MissionManager';
 import { RunStats } from '../progression/ScoreManager';
-import { SaveManager, Settings } from '../save/SaveManager';
+import {
+  SaveManager, Settings, BINDABLE_ACTIONS, BindableAction, DEFAULT_BINDINGS, rebind,
+} from '../save/SaveManager';
 
 /**
  * The whole interface: loading, menu, HUD, pause, game over, missions,
@@ -20,6 +22,46 @@ export interface UICallbacks {
   onOpen(panel: 'missions' | 'achievements' | 'settings'): void;
   onClosePanel(): void;
   onSettingChange(patch: Partial<Settings>): void;
+  /** Suspends game input while the settings panel waits for a key to bind. */
+  onCaptureKeys(active: boolean): void;
+  /** What a key currently does, so a clash can be reported before it happens. */
+  actionFor(code: string): string | null;
+}
+
+const ACTION_LABEL: Record<BindableAction, string> = {
+  left: 'Move left',
+  right: 'Move right',
+  jump: 'Jump',
+  slide: 'Slide',
+  pause: 'Pause',
+};
+
+/**
+ * Names a physical key for a human.
+ *
+ * `KeyboardEvent.code` names a position, not a letter, so `KeyA` is the key
+ * printed A on QWERTY and Q on AZERTY. Chromium exposes the real mapping via
+ * `navigator.keyboard.getLayoutMap()`; where it is missing the code is
+ * prettified instead, which is right for everyone on a QWERTY-like layout and
+ * at least unambiguous for everyone else.
+ */
+const KEY_ALIAS: Record<string, string> = {
+  ArrowLeft: '\u2190', ArrowRight: '\u2192', ArrowUp: '\u2191', ArrowDown: '\u2193',
+  Space: 'Space', Escape: 'Esc', Enter: 'Enter',
+  ShiftLeft: 'L Shift', ShiftRight: 'R Shift',
+  ControlLeft: 'L Ctrl', ControlRight: 'R Ctrl',
+  AltLeft: 'L Alt', AltRight: 'R Alt',
+};
+
+function prettyKey(code: string, layout?: Map<string, string>): string {
+  const alias = KEY_ALIAS[code];
+  if (alias) return alias;
+  const printed = layout?.get(code);
+  if (printed) return printed.toUpperCase();
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
+  return code;
 }
 
 const POWERUP_ICON: Record<string, string> = {
@@ -634,15 +676,154 @@ export class UIManager {
 
     p.appendChild(el('h3', undefined, 'Controls'));
     toggle('Invert swipe up/down', 'invertSwipe');
+    this.bindingsEl = el('div', 'bindings');
+    p.appendChild(this.bindingsEl);
+    const resetRow = el('div', 'setting');
+    resetRow.appendChild(el('label', undefined, 'Keyboard'));
+    const reset = el('button');
+    reset.textContent = 'Reset to defaults';
+    reset.addEventListener('click', () => {
+      this.click();
+      this.callbacks.onSettingChange({ keyBindings: DEFAULT_BINDINGS });
+      this.renderBindings();
+    });
+    resetRow.appendChild(reset);
+    p.appendChild(resetRow);
+    this.renderBindings();
+    // Chromium can say which letter each physical key actually prints; when it
+    // answers, the labels are redrawn with the player's real layout.
+    this.loadKeyboardLayout();
 
     p.appendChild(this.closeButton());
   }
+
+  // ------------------------------------------------------------ Key binding
+
+  private bindingsEl!: HTMLElement;
+  private layout?: Map<string, string>;
+  /** The chip currently waiting for a key, if any. */
+  private capturing: { action: BindableAction; slot: number; chip: HTMLElement } | null = null;
+
+  private async loadKeyboardLayout(): Promise<void> {
+    const kb = (navigator as unknown as {
+      keyboard?: { getLayoutMap(): Promise<Map<string, string>> };
+    }).keyboard;
+    if (this.layout || !kb?.getLayoutMap) return;
+    try {
+      this.layout = await kb.getLayoutMap();
+      this.renderBindings();
+    } catch {
+      // Not available under permissions policy; the fallback labels stand.
+    }
+  }
+
+  /** Draws one row per action, with a button per bound key. */
+  private renderBindings(): void {
+    this.cancelCapture();
+    this.bindingsEl.innerHTML = '';
+    const bindings = this.save.settings.keyBindings;
+    for (const action of BINDABLE_ACTIONS) {
+      const row = el('div', 'setting binding-row');
+      row.appendChild(el('label', undefined, ACTION_LABEL[action]));
+      const keys = el('div', 'binding-keys');
+      bindings[action].forEach((code, slot) => {
+        const chip = el('button', 'key-chip');
+        chip.textContent = prettyKey(code, this.layout);
+        chip.title = `${ACTION_LABEL[action]} — click to rebind (${code})`;
+        chip.setAttribute('aria-label', `${ACTION_LABEL[action]}: ${prettyKey(code, this.layout)}. Click to rebind.`);
+        chip.addEventListener('click', () => this.beginCapture(action, slot, chip));
+        keys.appendChild(chip);
+      });
+      row.appendChild(keys);
+      this.bindingsEl.appendChild(row);
+    }
+  }
+
+  private beginCapture(action: BindableAction, slot: number, chip: HTMLElement): void {
+    // Tapping the listening chip again backs out of it.
+    if (this.capturing?.chip === chip) {
+      this.cancelCapture();
+      this.renderBindings();
+      return;
+    }
+    this.cancelCapture();
+    this.click();
+    this.capturing = { action, slot, chip };
+    chip.classList.add('listening');
+    chip.textContent = 'Press a key';
+    // Game input is suspended for the duration, so the key being bound does not
+    // also pause the game or jump the player behind the open panel.
+    this.callbacks.onCaptureKeys(true);
+    window.addEventListener('keydown', this.onCaptureKey, true);
+    // Escape is the way out on a keyboard, but a phone has neither an Escape
+    // key nor, usually, any key at all — without this, a stray tap on a chip
+    // would leave the panel waiting forever for a press that cannot come.
+    window.addEventListener('pointerdown', this.onCapturePointer, true);
+  }
+
+  private cancelCapture(): void {
+    if (!this.capturing) return;
+    window.removeEventListener('keydown', this.onCaptureKey, true);
+    window.removeEventListener('pointerdown', this.onCapturePointer, true);
+    this.callbacks.onCaptureKeys(false);
+    this.capturing = null;
+  }
+
+  /** A press anywhere but the listening chip abandons the rebind. */
+  private readonly onCapturePointer = (e: PointerEvent): void => {
+    if (!this.capturing) return;
+    // The chip itself is left alone so its own click can toggle the capture off.
+    if (this.capturing.chip.contains(e.target as Node)) return;
+    this.cancelCapture();
+    this.renderBindings();
+  };
+
+  /**
+   * Takes the next key press as the new binding.
+   *
+   * Registered in the capture phase and stopped there, which is what keeps the
+   * key from reaching anything else on its way down — including the panel's own
+   * buttons, where a space or an enter would otherwise re-trigger the chip that
+   * started the capture.
+   */
+  private readonly onCaptureKey = (e: KeyboardEvent): void => {
+    if (!this.capturing) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const { action, slot } = this.capturing;
+    const code = e.code;
+
+    if (code === 'Escape') { this.cancelCapture(); this.renderBindings(); return; }
+
+    const result = rebind(this.save.settings.keyBindings, action, slot, code);
+    if (!result.ok) {
+      this.toast(
+        result.reason === 'reserved'
+          ? 'Enter is reserved for menus'
+          : `${prettyKey(code, this.layout)} is the only key for ${ACTION_LABEL[result.conflict!]}`,
+        'bad',
+      );
+      this.cancelCapture();
+      this.renderBindings();
+      return;
+    }
+
+    this.cancelCapture();
+    this.callbacks.onSettingChange({ keyBindings: result.bindings });
+    this.audio.play('SFX_UIClick');
+    this.renderBindings();
+  };
 
   private closeButton(): HTMLElement {
     const actions = el('div', 'panel-actions');
     const close = el('button', 'primary');
     close.textContent = 'Back';
-    close.addEventListener('click', () => { this.click(); this.callbacks.onClosePanel(); });
+    close.addEventListener('click', () => {
+      // Leaving the panel mid-capture would otherwise leave game input suspended.
+      this.cancelCapture();
+      this.click();
+      this.callbacks.onClosePanel();
+    });
     actions.appendChild(close);
     return actions;
   }

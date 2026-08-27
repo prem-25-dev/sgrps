@@ -3,7 +3,17 @@
  * Buffering lives in the player controller; this layer only reports intent.
  */
 
-export type Action = 'left' | 'right' | 'jump' | 'slide' | 'pause' | 'confirm';
+import { BindableAction, KeyBindings, DEFAULT_BINDINGS } from '../save/SaveManager';
+
+export type Action = BindableAction | 'confirm';
+
+/**
+ * The one binding a player cannot move.
+ *
+ * Confirm operates the menus, including the menu that holds the rebinding
+ * controls, so it stays on Enter no matter what else has been reassigned.
+ */
+const FIXED_KEYS: Record<string, Action> = { Enter: 'confirm' };
 
 type Listener = (action: Action) => void;
 
@@ -29,7 +39,35 @@ export class InputManager {
 
   settings: InputSettings = { swipeThreshold: 26, invertVertical: false };
 
-  constructor(private readonly target: HTMLElement | Window = window) {}
+  /**
+   * Code to action, rebuilt whenever the bindings change.
+   *
+   * A map rather than a switch because the bindings are player data now: the
+   * lookup has to answer for whatever keys they chose, not for a fixed list.
+   */
+  private keyMap = new Map<string, Action>();
+
+  constructor(private readonly target: HTMLElement | Window = window) {
+    this.setBindings(DEFAULT_BINDINGS);
+  }
+
+  /** Replaces the key bindings. Later actions win a contested key. */
+  setBindings(bindings: KeyBindings): void {
+    this.keyMap = new Map(Object.entries(FIXED_KEYS));
+    for (const [action, codes] of Object.entries(bindings) as [BindableAction, string[]][]) {
+      for (const code of codes) {
+        // Confirm is not up for grabs: a player who bound Enter to jump could
+        // still press it in a menu, but the menu would stop responding to it.
+        if (code in FIXED_KEYS) continue;
+        this.keyMap.set(code, action);
+      }
+    }
+  }
+
+  /** The action a key currently performs, or null. Exposed for the settings UI. */
+  actionFor(code: string): Action | null {
+    return this.keyMap.get(code) ?? null;
+  }
 
   attach(): void {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -110,15 +148,7 @@ export class InputManager {
   }
 
   private mapKey(code: string): Action | null {
-    switch (code) {
-      case 'ArrowLeft': case 'KeyA': return 'left';
-      case 'ArrowRight': case 'KeyD': return 'right';
-      case 'ArrowUp': case 'KeyW': case 'Space': return 'jump';
-      case 'ArrowDown': case 'KeyS': case 'ShiftLeft': case 'ShiftRight': return 'slide';
-      case 'Escape': case 'KeyP': return 'pause';
-      case 'Enter': return 'confirm';
-      default: return null;
-    }
+    return this.keyMap.get(code) ?? null;
   }
 
   /** True while a jump key is physically down; drives variable jump height. */

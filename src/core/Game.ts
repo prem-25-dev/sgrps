@@ -130,6 +130,11 @@ export class Game {
       onOpen: (panel) => this.openPanel(panel),
       onClosePanel: () => this.closePanel(),
       onSettingChange: (patch) => this.applySettings(patch),
+      // While the settings panel is listening for a key to bind, the game must
+      // not also act on it — otherwise binding Escape pauses, and binding the
+      // jump key jumps behind the open menu.
+      onCaptureKeys: (active) => this.input.setEnabled(!active),
+      actionFor: (code) => this.input.actionFor(code),
     });
 
     this.bindWindowEvents();
@@ -170,6 +175,7 @@ export class Game {
     // boot; applySettings alone means they are ignored until something is
     // toggled.
     this.input.settings.invertVertical = this.save.settings.invertSwipe;
+    this.input.setBindings(this.save.settings.keyBindings);
     this.input.attach();
     this.input.on((action) => {
       if (action === 'pause') this.togglePause();
@@ -362,6 +368,7 @@ export class Game {
     this.save.applySettings(patch);
     this.applyQuality();
     this.input.settings.invertVertical = this.save.settings.invertSwipe;
+    this.input.setBindings(this.save.settings.keyBindings);
   }
 
   private applyQuality(): void {
