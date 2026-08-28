@@ -218,15 +218,23 @@ const fullscreen = { offered: false, entered: false, exited: false };
   });
   fullscreen.offered = clicked;
   if (clicked) {
-    await page.waitForTimeout(600);
-    fullscreen.entered = await page.evaluate(() => !!document.fullscreenElement);
+    // Wait for the transition, do not sleep through it. On a CI runner this
+    // page renders 920k triangles in software at about one frame per second,
+    // so the click handler alone can take longer than the 600 ms this used to
+    // allow -- and the failure looked exactly like a game that refuses to go
+    // full screen. Third time this suite has been caught pacing a browser
+    // wait off a developer machine's frame rate.
+    const settled = (want) => page
+      .waitForFunction((w) => !!document.fullscreenElement === w, want, { timeout: 40000 })
+      .then(() => true, () => false);
+
+    fullscreen.entered = await settled(true);
     await page.evaluate(() => {
       const b = [...document.querySelectorAll('#menu button')]
         .find((x) => /full screen/i.test(x.textContent || ''));
       b?.click();
     });
-    await page.waitForTimeout(600);
-    fullscreen.exited = await page.evaluate(() => !document.fullscreenElement);
+    fullscreen.exited = await settled(false);
   }
 }
 
