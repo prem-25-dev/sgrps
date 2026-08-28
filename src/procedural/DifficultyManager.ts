@@ -25,8 +25,15 @@ export class DifficultyManager {
 
   update(distance: number, dt: number): void {
     const raw = Math.min(1, distance / CFG.difficulty.rampDistance);
-    // Ease the curve: the first few hundred metres stay gentle, the top end
-    // approaches 1 asymptotically rather than slamming into it.
+    // An exponent below one sits above the linear ramp for the whole climb, so
+    // pressure arrives early and then flattens rather than slamming into 1.
+    // The player leaves "Warm up" at 369 m rather than 630, and meets moving
+    // hazards at 1,509 m rather than 1,890. Whether that front-loading was
+    // intended is not recorded — the comment here used to describe the curve
+    // as a gentle start, which is what an exponent ABOVE one gives, so the
+    // exponent and the intent may never have agreed. Changing it is a balance
+    // decision, not a fix. `test:difficulty` pins the shape and the landmarks
+    // so either choice is deliberate.
     this.value = Math.pow(raw, 0.78);
     this.relief = Math.max(0, this.relief - dt * 0.25);
   }

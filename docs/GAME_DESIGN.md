@@ -156,11 +156,33 @@ than skipping the rest of it. It never appears again once a run is completed.
 
 ## Difficulty curve
 
-One normalised number, 0 → 1 over 4,200 m, eased so the first few hundred
-metres stay gentle. It drives obstacle density, which templates are eligible,
-how often dynamic hazards appear, power-up frequency, and the reaction-time
-guarantee. The player feels it as: more lanes closed at once, less room
-between decisions, and hazards that move.
+One normalised number, 0 → 1 over 4,200 m, shaped by an exponent below one so
+that it runs *ahead* of a linear ramp for the whole climb and flattens towards
+the top rather than slamming into 1. It drives obstacle density, which
+templates are eligible, how often dynamic hazards appear, power-up frequency,
+and the reaction-time guarantee. The player feels it as: more lanes closed at
+once, less room between decisions, and hazards that move.
+
+The curve is front-loaded, and this section previously said the opposite — that
+it was "eased so the first few hundred metres stay gentle", which is what an
+exponent *above* one would do. Whether the front-loading was intended or the
+exponent simply never matched the intent is not recorded anywhere; what
+follows is measured from the code rather than inferred from the prose:
+
+| moment | actual | a linear ramp |
+|---|---|---|
+| leaves "Warm up" | 369 m | 630 m |
+| leaves "Cruising" | 1,093 m | 1,470 m |
+| moving hazards begin | 1,509 m | 1,890 m |
+
+Whether it *should* be front-loaded is a balance decision rather than a defect:
+the fairness engine proves every segment survivable at whatever difficulty it
+is handed, so the shape changes how the game feels, not whether it is fair.
+`test:difficulty` holds the curve to these numbers, so a retune shows up as a
+diff in metres rather than as a vague change in feel.
+
+New players do get a gentle opening, but from the tutorial rather than the
+curve: it caps difficulty outright while it runs.
 
 ## Presentation
 

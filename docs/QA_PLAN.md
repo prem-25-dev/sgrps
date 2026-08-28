@@ -871,6 +871,60 @@ too far ahead (feet to -0.709), the camera no longer strafing with the lane
 (head to -0.182), and the camera barely rising with the player (head to 0.354
 on a roof-jump).
 
+## The curve that ran the other way
+
+`DifficultyManager` produces the one number the whole game's pacing hangs on —
+the generator, the validator, the HUD and the tutorial all read it — and
+nothing asserted its behaviour. Other suites drove it; none checked it.
+
+`test:difficulty` checks it against what the documents claim, and the first
+thing it found was that the documents were wrong.
+
+The curve is `Math.pow(raw, 0.78)`. An exponent **below** one sits *above* the
+linear ramp for the whole climb: pressure arrives faster than linear early and
+flattens towards the top. Both the class comment and `GAME_DESIGN.md`
+described it as "eased so the first few hundred metres stay gentle", which is
+what an exponent above one does. The curve does the opposite of what two
+documents said, and had since it was written.
+
+In metres, which is how a player meets it:
+
+| moment | actual | a linear ramp |
+|---|---|---|
+| leaves "Warm up" | 369 m | 630 m |
+| leaves "Cruising" | 1,093 m | 1,470 m |
+| moving hazards begin | 1,509 m | 1,890 m |
+
+**Only the documents were changed.** Whether the curve should be front-loaded
+is a balance decision, not a defect: the fairness engine proves every segment
+survivable at whatever difficulty it is handed, so the shape changes how the
+game feels, not whether it is fair. Flipping the exponent would retune every
+run in the game, which is not a call to make while fixing a comment. Whether
+the front-loading was intended or the exponent never matched the intent is not
+recorded anywhere, and both documents now say so rather than guessing.
+
+What the suite adds is that either choice becomes deliberate: the landmarks are
+asserted in metres, so a retune shows up as a diff rather than as a vague
+change in feel. Sabotage flipping the exponent to 1.4 — the gentle start the
+prose described — fails three assertions and reports every landmark that
+moved.
+
+The rest of the suite holds the mechanics the design doc promises. Relief
+after a stumble is real, and unlike the reaction guarantee (which was once
+computed and never enforced) it is wired: `Game` grants it on a survivable
+hit, it lowers what the generator builds without touching the raw curve that
+scoring and the HUD read, it decays in about 1.1 s rather than lasting the
+run, and it is capped so that repeated stumbles cannot switch the game off.
+The tutorial ceiling clamps what is built while the raw curve climbs
+underneath. Every derived gate the design doc lists — obstacle density,
+power-up frequency, bonus coins, moving hazards, the 0.95 s to 0.52 s reaction
+guarantee — is checked to move, and to move the right way.
+
+Seven sabotage passes, each caught by the assertion that should catch it: the
+exponent flipped and flattened, relief that never decays, relief uncapped,
+hazards from the first metre, the ceiling ignored, and the reaction promise
+broken.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

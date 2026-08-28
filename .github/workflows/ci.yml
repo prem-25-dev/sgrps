@@ -58,6 +58,9 @@ jobs:
       - name: Zones
         run: npm run test:zones
 
+      - name: Difficulty curve
+        run: npm run test:difficulty
+
       - name: Chase camera
         run: npm run test:camera
 
