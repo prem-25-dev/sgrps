@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildTrackModule, TrackVariant } from '../assets/TrackFactory';
 import { buildStation } from '../assets/StationFactory';
+import { AmbientTrains } from './AmbientTrains';
 import { CFG } from '../core/Config';
 import { ActiveObstacle, CollisionSystem } from '../core/CollisionSystem';
 import { KeyedPool } from '../core/ObjectPool';
@@ -41,6 +42,8 @@ const STATION_VARIANTS = 8;
 export class TrackManager {
   readonly root = new THREE.Group();
   readonly decor = new DecorScatter();
+  /** Scenery traffic on the neighbouring lines; never collides. */
+  readonly ambientTrains = new AmbientTrains();
 
   private modules: ResidentModule[] = [];
   private segments: ResidentSegment[] = [];
@@ -85,6 +88,7 @@ export class TrackManager {
   ) {
     this.root.name = 'TRK_World';
     this.root.add(this.decor.root);
+    this.root.add(this.ambientTrains.root);
   }
 
   setDecorDensity(density: number): void {
@@ -99,6 +103,7 @@ export class TrackManager {
     this.activeObstacles = [];
     this.trains = [];
     this.decor.clear();
+    this.ambientTrains.reset(seed);
     this.coins.clear();
     this.powerUps.clear();
     this.rng = new Random(seed);
@@ -115,6 +120,7 @@ export class TrackManager {
     this.recycleBehind(distance);
     this.reposition(distance);
     this.decor.update(dt, distance);
+    this.ambientTrains.update(dt, distance);
     for (const train of this.trains) train.update(dt, this.time);
     this.updateDynamics(dt);
   }

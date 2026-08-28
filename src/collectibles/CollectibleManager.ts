@@ -24,6 +24,12 @@ interface Coin {
   spin: number;
 }
 
+/**
+ * How far behind the player a coin keeps being drawn. Anything further back is
+ * uncollectable and is only ever seen from the inside.
+ */
+const BEHIND_FADE = 3;
+
 const MAX_COINS = 420;
 
 export class CollectibleManager {
@@ -129,6 +135,14 @@ export class CollectibleManager {
       }
       if (relZ > CFG.viewDistance + 20) {
         // Not visible yet; park it out of sight without spending maths on it.
+        this.matrix.compose(this.hidden, this.quat, this.scale);
+        this.mesh.setMatrixAt(i, this.matrix);
+        continue;
+      }
+      if (relZ < -BEHIND_FADE && !coin.attracting) {
+        // Passed, and on its way to the recycle line 34 m back. The camera
+        // trails 7.4 m behind the player, so a coin drawn here sails straight
+        // through it and fills the screen with a gold blur on the way out.
         this.matrix.compose(this.hidden, this.quat, this.scale);
         this.mesh.setMatrixAt(i, this.matrix);
         continue;

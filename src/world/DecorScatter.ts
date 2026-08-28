@@ -169,7 +169,7 @@ export class DecorScatter {
         const z = startZ + rng.range(0, length);
         const railSide = tag === 'rail';
         object.position.set(
-          side * (railSide ? TRACK_HALF_WIDTH + rng.range(1.2, 3.2) : TRACK_HALF_WIDTH + rng.range(5, 14)),
+          side * (railSide ? TRACK_HALF_WIDTH + rng.range(1.2, 3.2) : TRACK_HALF_WIDTH + rng.range(8.4, 14)),
           0,
           z - startZ,
         );
@@ -188,7 +188,7 @@ export class DecorScatter {
         const key = `${id}|${rng.int(0, VARIANTS_PER_PROP)}`;
         const object = this.vegetation.acquire(key);
         const z = startZ + rng.range(0, length);
-        object.position.set(side * (TRACK_HALF_WIDTH + rng.range(4, 16)), 0, z - startZ);
+        object.position.set(side * (TRACK_HALF_WIDTH + rng.range(8.4, 16)), 0, z - startZ);
         object.rotation.y = rng.range(0, Math.PI * 2);
         object.scale.setScalar(rng.range(0.85, 1.25));
         this.root.add(object);
@@ -201,7 +201,7 @@ export class DecorScatter {
         const key = `${id}|${rng.int(0, VARIANTS_PER_PROP)}`;
         const object = this.vehicles.acquire(key);
         const z = startZ + rng.range(0, length);
-        object.position.set(side * (TRACK_HALF_WIDTH + rng.range(6.5, 9)), 0, z - startZ);
+        object.position.set(side * (TRACK_HALF_WIDTH + rng.range(8.4, 10.5)), 0, z - startZ);
         // Traffic runs parallel to the track, in either direction.
         const towards = rng.bool();
         object.rotation.y = towards ? Math.PI : 0;

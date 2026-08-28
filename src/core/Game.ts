@@ -375,6 +375,7 @@ export class Game {
     this.vfx.setPixelRatio(dpr);
     this.vfx.setQuality(s.reducedMotion, profile.particleScale);
     this.track.setDecorDensity(profile.decorDensity);
+    this.track.ambientTrains.setEnabled(profile.decorDensity > 0.6);
 
     const shadows = s.shadows && profile.shadowSize > 0;
     this.renderer.shadowMap.enabled = shadows;

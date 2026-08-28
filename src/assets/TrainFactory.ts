@@ -257,10 +257,15 @@ export interface TrainDoors {
 }
 
 /** Plug doors that slide into the body side. */
-function addDoors(group: THREE.Group, spec: TrainSpec): TrainDoors {
+function addDoors(group: THREE.Group, spec: TrainSpec, skip = false): TrainDoors {
   const halfL = spec.length / 2;
   const leaves: Array<{ mesh: THREE.Mesh; closed: number; dir: number }> = [];
   const doorMat = material('MAT_PaintedMetalDark');
+
+  // Scenery stock keeps the door openings painted on by the livery rather than
+  // modelled: at the distance these are seen, four leaves a door is geometry
+  // nobody can resolve.
+  if (skip) return { set: () => {} };
 
   for (let d = 0; d < spec.doors; d++) {
     const z = -halfL + ((d + 1) * spec.length) / (spec.doors + 1);
@@ -385,6 +390,12 @@ export interface Train {
 export function buildTrain(
   variant: TrainVariant,
   role: 'lead' | 'middle' | 'tail' = 'lead',
+  /**
+   * `scenery` drops everything that cannot be read from the neighbouring line:
+   * the interior, the working doors, the roof kit. What is left is the
+   * silhouette, the windows and the livery — which is all a passing train is.
+   */
+  detail: 'full' | 'scenery' = 'full',
 ): Train {
   const spec = SPECS[variant];
   const group = new THREE.Group();
@@ -408,10 +419,11 @@ export function buildTrain(
     group.add(b);
   }
 
-  if (spec.interior) addInterior(group, spec);
+  const scenery = detail === 'scenery';
+  if (spec.interior && !scenery) addInterior(group, spec);
   if (spec.windows) addWindows(group, spec);
-  const doors = addDoors(group, spec);
-  addRoofKit(group, spec);
+  const doors = addDoors(group, spec, scenery);
+  if (!scenery) addRoofKit(group, spec);
   addLightsAndLivery(group, spec);
 
   let doorPhase = 0;

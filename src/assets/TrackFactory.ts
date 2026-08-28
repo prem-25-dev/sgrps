@@ -38,6 +38,14 @@ const SLEEPER_TOP = 0;
 const BALLAST_DEPTH = 0.34;
 export const TRACK_HALF_WIDTH = (CFG.laneCount * CFG.laneWidth) / 2 + 1.2;
 
+/**
+ * Centre of the neighbouring running lines, one either side of the formation
+ * the player uses. Nothing on them collides — they exist so there is somewhere
+ * for traffic to pass. Placed outside the cess and its drainage, and inside
+ * the band the lineside decor is scattered into.
+ */
+export const SIDE_LINE_X = TRACK_HALF_WIDTH + 5.4;
+
 /** Rail profile: a real I-beam section rather than a plain box. */
 function railGeometry(length: number): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
@@ -139,6 +147,47 @@ function addPermanentWay(group: THREE.Group, ctx: ModuleContext): void {
   const ballast = new THREE.Mesh(ballastGeometry(length, TRACK_HALF_WIDTH * 2), material('MAT_Ballast'));
   ballast.receiveShadow = true;
   group.add(ballast);
+}
+
+/**
+ * The neighbouring running lines. Rails and sleepers only: no ballast shoulder
+ * and no fixings, because they are seen at a distance and in motion, and the
+ * detail would be spent where nobody is looking.
+ */
+function addSideLines(group: THREE.Group, ctx: ModuleContext): void {
+  const { length } = ctx;
+  const rail = new THREE.Mesh(railGeometry(length), material('MAT_RailSteel'));
+  rail.receiveShadow = true;
+
+  const spacing = 0.62;
+  const count = Math.floor(length / spacing);
+  const sleepers = new THREE.InstancedMesh(sleeperGeometry(), material('MAT_Sleeper'), count * 2);
+  sleepers.receiveShadow = true;
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const one = new THREE.Vector3(1, 1, 1);
+  const p = new THREE.Vector3();
+  let i = 0;
+
+  for (const side of [-1, 1]) {
+    const cx = side * SIDE_LINE_X;
+    for (const rs of [-1, 1]) {
+      const r = rail.clone();
+      r.position.set(cx + rs * GAUGE, SLEEPER_TOP, 0);
+      group.add(r);
+    }
+    for (let n = 0; n < count; n++) {
+      const z = -length / 2 + spacing * (n + 0.5);
+      const jitter = (hash01(ctx.seed + 977 + n + (side > 0 ? 61 : 0)) - 0.5) * 0.03;
+      p.set(cx, -0.06 + jitter * 0.4, z);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), jitter * 0.5);
+      m.compose(p, q, one);
+      sleepers.setMatrixAt(i++, m);
+    }
+  }
+  sleepers.count = i;
+  sleepers.instanceMatrix.needsUpdate = true;
+  group.add(sleepers);
 }
 
 /** Cess: the walkable strip and drainage either side of the running lines. */
@@ -330,6 +379,7 @@ export function buildTrackModule(variant: TrackVariant, seed: number): THREE.Gro
   const ctx: ModuleContext = { length, seed };
 
   addPermanentWay(group, ctx);
+  addSideLines(group, ctx);
   addCess(group, ctx);
   addCableRoute(group, ctx);
 
