@@ -59,6 +59,53 @@ function settle(ctrl: CameraController, s: PlayerState, seconds = 1.5, dt = 1 / 
   for (let i = 0; i < Math.round(seconds / dt); i++) ctrl.update(dt, s);
 }
 
+// -------------------------------------------------- the world must be in view
+//
+// The one thing no assertion checked, and the one that mattered most: the
+// camera spent the whole build pointing the wrong way. `TrackManager` draws
+// everything ahead of the player at `absoluteZ - distance`, so an obstacle
+// 50 m away sits at +50 — while the camera trailed at +7.4 m and looked toward
+// -Z. Every obstacle, coin and power-up was rendered behind the camera. The
+// game was unplayable in the most literal sense: you could not see what was
+// coming, and nothing failed, because every suite either ran headless in
+// gameplay space or only ever projected the hero, who stands at z = 0 and is
+// in frame whichever way the camera faces.
+
+{
+  const { cam, ctrl } = rig();
+  const s = state({ speed: CFG.speed.max });
+  settle(ctrl, s);
+  cam.updateMatrixWorld(true);
+
+  check('the camera trails the player rather than leading them', cam.position.z < 0,
+    `camera at z ${cam.position.z.toFixed(2)}, world ahead is +Z`);
+
+  const e = cam.matrixWorld.elements;
+  const lookZ = -e[10];
+  check('and looks the way the world streams from', lookZ > 0.9,
+    `look direction z ${lookZ.toFixed(3)}`);
+
+  // The decisive one, in the same terms a player experiences: something on the
+  // track ahead has to project inside the frustum, and something already
+  // passed has to fall outside it.
+  const ahead = new THREE.Vector3(0, 1, 50).project(cam);
+  const behind = new THREE.Vector3(0, 1, -50).project(cam);
+  const inFrame = (v: THREE.Vector3): boolean =>
+    Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 && v.z >= -1 && v.z <= 1;
+  check('an obstacle 50 m ahead is on screen', inFrame(ahead),
+    `projects to ${ahead.toArray().map((n) => n.toFixed(2)).join(', ')}`);
+  check('and one 50 m behind is not', !inFrame(behind),
+    `projects to ${behind.toArray().map((n) => n.toFixed(2)).join(', ')}`);
+
+  // The whole visible run of track, not just one point.
+  const missing: number[] = [];
+  for (let z = 10; z <= CFG.viewDistance; z += 10) {
+    if (!inFrame(new THREE.Vector3(0, 1, z).project(cam))) missing.push(z);
+  }
+  check(`the whole ${CFG.viewDistance} m of streamed track is in view`, missing.length === 0,
+    `not visible at ${missing.join(', ')} m`);
+}
+
 // ------------------------------------------------------ the hero is in frame
 //
 // Not "inside the frustum" — that passes on a camera pointed almost anywhere,

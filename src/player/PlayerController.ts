@@ -336,8 +336,13 @@ export class PlayerController {
     const s = this.state;
     this.hero.object.position.set(s.x, s.y, 0);
     // A slight body yaw into the lane change sells the direction change.
+    //
+    // The base is a half turn: the model is authored facing -Z, and the world
+    // streams from +Z, so the runner has to face +Z to be running into it
+    // rather than away from it. The yaw is negated against that turn so the
+    // shoulders still lead into the lane the player is moving to.
     const yaw = this.laneT < 1 ? -this.laneDir * 0.22 * Math.sin(this.laneT * Math.PI) : 0;
-    this.hero.object.rotation.y = yaw;
+    this.hero.object.rotation.y = Math.PI - yaw;
   }
 
   private readonly animContext: AnimContext = {

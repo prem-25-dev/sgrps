@@ -29,8 +29,12 @@ export class CameraController {
     camera.near = CFG.camera.near;
     camera.far = CFG.camera.far;
     camera.updateProjectionMatrix();
-    this.position.set(0, CFG.camera.height, CFG.camera.distance);
-    this.lookAt.set(0, CFG.camera.lookHeight, -CFG.camera.lookAhead);
+    // The world streams from +Z: `TrackManager` draws everything ahead of the
+    // player at `absoluteZ - distance`, so an obstacle 50 m away sits at +50.
+    // The camera therefore trails at -Z and looks toward +Z. It used to do the
+    // exact opposite, which put every obstacle behind the camera.
+    this.position.set(0, CFG.camera.height, -CFG.camera.distance);
+    this.lookAt.set(0, CFG.camera.lookHeight, CFG.camera.lookAhead);
     camera.position.copy(this.position);
     camera.lookAt(this.lookAt);
   }
@@ -68,15 +72,15 @@ export class CameraController {
   /**
    * Menu framing: a three-quarter portrait from the front.
    *
-   * The hero is modelled facing -Z, so the camera has to sit on the negative
-   * Z side to see their face; it drifts slowly around that axis.
+   * The hero runs toward +Z, so the camera has to sit on the positive Z side
+   * to see their face; it drifts slowly around that axis.
    */
   poseForMenu(dt: number, heroHeight: number): void {
     this.following = false;
     this.time += dt;
     const orbit = 0.55 + Math.sin(this.time * 0.18) * 0.28;
     const radius = 2.9;
-    this.desired.set(Math.sin(orbit) * radius, heroHeight * 0.66, -Math.cos(orbit) * radius);
+    this.desired.set(Math.sin(orbit) * radius, heroHeight * 0.66, Math.cos(orbit) * radius);
     this.desiredLook.set(0, heroHeight * 0.55, 0);
     this.smooth(dt, 0.5);
     this.fov += (46 - this.fov) * (1 - Math.exp(-dt / 0.35));
@@ -93,7 +97,8 @@ export class CameraController {
     const speedT = Math.min(1, Math.max(0, (player.speed - CFG.speed.base) / (CFG.speed.max - CFG.speed.base)));
 
     // Pull back and rise a touch as speed climbs so the road ahead stays visible.
-    const distance = CFG.camera.distance + speedT * 1.35 + this.cinematic * 1.2;
+    // Negative: the camera trails the player, and ahead is +Z.
+    const distance = -(CFG.camera.distance + speedT * 1.35 + this.cinematic * 1.2);
     const height = CFG.camera.height + player.y * 0.55 + speedT * 0.35;
 
     // Lane lean: the rig drifts opposite the movement, which reads as weight.
@@ -111,16 +116,17 @@ export class CameraController {
     this.desiredLook.set(
       player.x * 0.85,
       player.y + CFG.camera.lookHeight - slideDrop * 0.45 + this.impact * 0.18,
-      -CFG.camera.lookAhead - speedT * 3.2,
+      CFG.camera.lookAhead + speedT * 3.2,
     );
 
     if (this.cinematic > 0) {
       // Game over: swing round to the front of the hero.
       const swing = Math.min(1, this.cinematic);
       this.desired.x += Math.sin(this.time * 0.9) * 2.4 * swing;
-      this.desired.z -= 4.2 * swing;
+      // Round to the front of the hero, who faces +Z.
+      this.desired.z += 4.2 * swing;
       this.desired.y += 0.6 * swing;
-      this.desiredLook.z = -1.2;
+      this.desiredLook.z = 1.2;
       this.cinematic = Math.min(1.6, this.cinematic + dt * 0.6);
       this.slowMotion += (1 - this.slowMotion) * (1 - Math.exp(-dt / 2.4));
     }

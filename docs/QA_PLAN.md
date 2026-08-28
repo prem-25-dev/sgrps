@@ -1047,6 +1047,44 @@ of jump range, a weaker jump, and a taller sliding collider.
 suites drive the same game rather than a copy of it. `test:gameplay` still
 passes 46 of 46 across the move.
 
+## The camera was pointing the wrong way
+
+The worst bug in the project, found by a player looking at the screen for ten
+seconds, after every suite in this file had gone green.
+
+`TrackManager` draws the world ahead of the player at `absoluteZ - distance`,
+so an obstacle 50 m away sits at **+50**. The chase camera trailed at **+7.4**
+and looked toward **-Z**. Everything the player was running toward — every
+obstacle, every coin, every power-up — was rendered *behind the camera*.
+Measured on the running game: three obstacles resident, three projecting
+outside the frustum, zero on screen.
+
+The game was unplayable in the most literal sense. You could not see what was
+coming. What the player did see was the empty track behind them, plus the
+occasional coin swelling to fill the frame as it passed through the camera on
+its way past — which is what prompted the report, phrased as "why is the guy in
+front view, how can I find obstacles".
+
+**Nothing failed, and the reason is worth writing down.** The fairness engine,
+the generator, the collision system and the differential replay all work in
+gameplay space, where z is a scalar and rendering does not exist. The browser
+playtest drove the game, counted draw calls and console errors, opened every
+panel — and never asked whether anything was in front of the camera. And
+`test:camera`, added the same day, projects the *hero*, who stands at z = 0
+and is in frame whichever way the camera faces. Sixteen suites and 323
+assertions, all of them looking past it.
+
+The camera now trails at -Z and looks toward +Z, and the hero turns to face the
+way the world streams. `test:camera` gained the assertion that was missing —
+a point 50 m ahead must project inside the frustum, one 50 m behind must not,
+and the whole 210 m of streamed track must be in view. Reverting the camera to
+its shipped direction fails five assertions and lists all 21 sampled distances
+as invisible.
+
+The lesson is not "add a frustum check". It is that every suite tested the
+game's *model* and none tested what the player is shown. A pixel is the only
+witness for that, and the only pixel anything looked at was the HUD's.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and
