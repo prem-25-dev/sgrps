@@ -95,6 +95,9 @@ export class CollectibleManager {
     this.mesh.instanceMatrix.needsUpdate = true;
     this.magnetActive = false;
     this.valueMultiplier = 1;
+    // The spin clock belongs to the coins being cleared: carrying it into the
+    // next run would start a replay of the same seed on a different phase.
+    this.time = 0;
   }
 
   /**

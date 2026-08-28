@@ -41,7 +41,9 @@ everything has three side effects worth keeping:
 2. **A 200 KB gzipped build.** The entire game, including every texture and
    every sound, is smaller than a single 2K PNG.
 3. **Seeded reproducibility.** The same seed produces the same world, because
-   the assets are functions rather than files.
+   the assets are functions rather than files. `npm run test:determinism`
+   holds it to that: it fingerprints every mesh the world builds and compares
+   two runs of a seed, and a replay after a restart.
 
 ## Adding third-party assets later
 

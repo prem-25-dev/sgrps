@@ -58,6 +58,9 @@ jobs:
       - name: Zones
         run: npm run test:zones
 
+      - name: Seed determinism
+        run: npm run test:determinism
+
       - name: Tutorial step machine
         run: npm run test:tutorial
 

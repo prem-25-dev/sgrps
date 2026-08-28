@@ -3,7 +3,7 @@ import { buildTrackModule, TrackVariant } from '../assets/TrackFactory';
 import { buildStation } from '../assets/StationFactory';
 import { CFG } from '../core/Config';
 import { ActiveObstacle, CollisionSystem } from '../core/CollisionSystem';
-import { KeyedPool, ObjectPool } from '../core/ObjectPool';
+import { KeyedPool } from '../core/ObjectPool';
 import { Random } from '../core/Random';
 import { ZoneDef } from '../core/Types';
 import { zoneAt } from '../../data/difficulty/zones';
@@ -31,10 +31,12 @@ interface ResidentModule {
 interface ResidentSegment {
   plan: PlannedSegment;
   obstacles: ActiveObstacle[];
-  station: THREE.Group | null;
+  /** A station and the pool key it must go back to, or neither. */
+  station: { group: THREE.Group; key: string } | null;
 }
 
 const STATION_EVERY = 7;
+const STATION_VARIANTS = 8;
 
 export class TrackManager {
   readonly root = new THREE.Group();
@@ -63,8 +65,8 @@ export class TrackManager {
     (g) => { g.visible = false; g.parent?.remove(g); },
   );
 
-  private stationPool = new ObjectPool<THREE.Group>(
-    () => buildStation(Math.floor(Math.random() * 9999)),
+  private stationPool = new KeyedPool<THREE.Group>(
+    (key) => buildStation(Number(key)),
     (g) => { g.visible = true; },
     (g) => { g.visible = false; g.parent?.remove(g); },
   );
@@ -194,12 +196,14 @@ export class TrackManager {
     this.powerUps.spawn(plan.powerUps);
 
     // Stations appear on a cadence, dressed onto the platform modules.
-    let station: THREE.Group | null = null;
+    let station: ResidentSegment['station'] = null;
     this.segmentCount++;
     if (this.segmentCount % STATION_EVERY === 0) {
-      station = this.stationPool.acquire();
-      station.position.set(0, 0, plan.startZ + plan.length / 2 - distance);
-      this.root.add(station);
+      const key = String(stationSeed(this.segmentCount));
+      const group = this.stationPool.acquire(key);
+      group.position.set(0, 0, plan.startZ + plan.length / 2 - distance);
+      this.root.add(group);
+      station = { group, key };
     }
 
     const { zone, index } = zoneAt(plan.startZ);
@@ -235,7 +239,7 @@ export class TrackManager {
       if (index >= 0) this.activeObstacles.splice(index, 1);
       this.obstaclePool.release(o.poolKey, o.object as THREE.Group);
     }
-    if (s.station) this.stationPool.release(s.station);
+    if (s.station) this.stationPool.release(s.station.key, s.station.group);
     this.collision.setObstacles(this.activeObstacles);
   }
 
@@ -245,7 +249,7 @@ export class TrackManager {
       m.group.position.z = m.startZ - distance + CFG.segmentLength / 2;
     }
     for (const s of this.segments) {
-      if (s.station) s.station.position.z = s.plan.startZ + s.plan.length / 2 - distance;
+      if (s.station) s.station.group.position.z = s.plan.startZ + s.plan.length / 2 - distance;
     }
     for (const o of this.activeObstacles) {
       o.object.position.set(o.x, o.baseY, o.z - distance);
@@ -301,6 +305,16 @@ export class TrackManager {
 
 function laneX(lane: number): number {
   return (lane - (CFG.laneCount - 1) / 2) * CFG.laneWidth;
+}
+
+/**
+ * Stations cycle through a fixed set of dressings. Bounded, so the pool still
+ * plateaus; derived from the segment count rather than a random draw, so a
+ * replay of a seed puts the same benches and the same staircase in the same
+ * station.
+ */
+function stationSeed(segmentCount: number): number {
+  return Math.floor(segmentCount / STATION_EVERY) % STATION_VARIANTS;
 }
 
 function moduleSeed(startZ: number): number {

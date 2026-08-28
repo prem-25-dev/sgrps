@@ -709,6 +709,70 @@ faded over 91px and left a visible dark band across the sky, because the sky is
 a smooth gradient and anything short reads as an edge. Spread over 220px with
 an eased falloff it follows the sky's own zenith-to-horizon shading instead.
 
+## The seed that did not pin the world down
+
+Two documents promised seeded reproducibility — the asset register lists it as
+a property of the world build, and `DecorScatter`'s own comment says its
+scatter "is the same on a replay of the same seed". Nothing checked it, and it
+was not true.
+
+`test:determinism` fingerprints the built world rather than reading the code
+for unseeded calls: every visible mesh's name, world transform, geometry type
+and vertex count, plus every live coin's instance matrix, quantised and sorted.
+Sorting is deliberate. Child order is an artefact of pool free-lists and is
+invisible to a player; a bench that moved is not.
+
+It found two breaks on the first run.
+
+**Stations were drawn from `Math.random()`.** The station pool built each
+assembly with `buildStation(Math.floor(Math.random() * 9999))`, and that seed
+decides where the two benches sit and whether each platform gets stairs or an
+escalator. Same seed, different station — the fingerprint caught it as one mesh
+position holding 336 vertices in one run and 24 in the other. Stations now come
+from a `KeyedPool` keyed on a bounded seed derived from the segment count, the
+same shape the track modules already used. Eight dressings cycle, so the pool
+still plateaus (the soak confirms it) and a replay puts the same staircase in
+the same station.
+
+**The coin clock ran across restarts.** `CollectibleManager.clear()` reset the
+coins but not `time`, so a second run of the same seed started with every coin
+on a different spin and bob phase. `TrackManager` and `PowerUpManager` both
+already zeroed their own clocks on reset; the coins now do too.
+
+This is worth more than tidiness. Fairness, soak and gameplay all stream the
+world and assert things about what came out, and every one of those assertions
+is only meaningful if a seed pins the run down. An unseeded call in the stream
+would make them sample a different world on each CI run, and a rare failure
+would be unreproducible by construction.
+
+### What the guarantee deliberately excludes
+
+Three systems still draw from `Math.random()`, and should. Particle sparks and
+dust, the camera's shake seed, and the choice between the two idle animations
+are noise laid over the world rather than part of it — seeding them would make
+a replay identical in ways a player would read as a bug rather than a feature.
+The guarantee is that the same seed builds the same *world*: the same level,
+the same dressing, the same coins in the same places. The fingerprint reflects
+that split — it samples meshes and coin instances, not the particle pool.
+
+### The anti-vacuity check that was itself vacuous
+
+Five sabotage passes were run. Restoring the random station seed, dropping the
+coin clock reset, and pinning every station to one dressing were each caught by
+the assertion that should catch them.
+
+The fourth was not. A generator hard-wired to ignore its seed passed the check
+that a *different seed builds a different world* — because the world has other
+seeded systems. `TrackManager` keeps its own `Random`, and the decor scatter is
+seeded per segment, so two runs differ visually while the level layout is
+identical. The check was measuring the wrong thing at the wrong altitude.
+
+The layout is now checked where it is made: sixty segments are pulled straight
+out of the generator and compared as text — template, every obstacle with its
+lane, Z and drift, every coin, every power-up, the exit lanes. Same seed must
+give the same sixty; different seeds must not. The hard-wired generator fails
+the second, and a generator that jitters its seed by one fails the first.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and
