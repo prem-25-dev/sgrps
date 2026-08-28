@@ -207,6 +207,14 @@ diff in metres rather than as a vague change in feel.
 New players do get a gentle opening, but from the tutorial rather than the
 curve: it caps difficulty outright while it runs.
 
+## Full screen
+
+A button on the main menu and in the pause panel, using the Fullscreen API with
+Safari's prefixed calls. It hides itself where the browser cannot put an
+ordinary element full screen at all — iOS Safari only does this for `<video>` —
+and says so rather than failing silently when the request is refused, which is
+what happens to a copy embedded in a frame that was not granted the permission.
+
 ## Presentation
 
 - Camera: smooth chase with lane lean, speed FOV, landing impact, a slide

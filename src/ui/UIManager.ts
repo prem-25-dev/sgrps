@@ -4,6 +4,7 @@ import { GameState } from '../core/Types';
 import { AudioManager } from '../audio/AudioManager';
 import { AchievementManager, MissionManager } from '../progression/MissionManager';
 import { RunStats } from '../progression/ScoreManager';
+import * as fullscreen from './Fullscreen';
 import {
   SaveManager, Settings, BINDABLE_ACTIONS, BindableAction, DEFAULT_BINDINGS, rebind,
 } from '../save/SaveManager';
@@ -240,6 +241,12 @@ export class UIManager {
       row.appendChild(b);
     }
     actions.appendChild(row);
+
+    const fs = this.fullscreenButton();
+    if (fs) {
+      fs.style.width = '100%';
+      actions.appendChild(fs);
+    }
     top.appendChild(actions);
 
     const hint = el('div', 'hint');
@@ -443,8 +450,34 @@ export class UIManager {
     home.textContent = 'Quit';
     home.addEventListener('click', () => { this.click(); this.callbacks.onHome(); });
     actions.append(resume, settings, home);
+    const fs = this.fullscreenButton();
+    if (fs) panel.appendChild(fs);
     panel.appendChild(actions);
     screen.appendChild(panel);
+  }
+
+  /**
+   * A fullscreen toggle. Hidden entirely where the browser cannot do it (iOS
+   * Safari), and it says so if the attempt is refused — which is what happens
+   * when the game is embedded in a frame that was not given the permission.
+   */
+  private fullscreenButton(cls = 'small'): HTMLElement | null {
+    if (!fullscreen.available()) return null;
+    const b = el('button', cls);
+    b.style.justifyContent = 'center';
+    const label = () => { b.textContent = fullscreen.isFullscreen() ? 'Exit full screen' : 'Full screen'; };
+    label();
+    b.addEventListener('click', async () => {
+      this.click();
+      const ok = await fullscreen.toggle(document.documentElement);
+      if (!ok) {
+        this.toast('This page cannot go full screen. Open it in its own tab.', 'bad');
+      }
+      label();
+    });
+    // UIManager lives for the page, so this listener is never removed.
+    fullscreen.onChange(label);
+    return b;
   }
 
   // -------------------------------------------------------------- Game over

@@ -70,7 +70,7 @@ Six more run in a real browser, under `npm run playtest`:
 
 | Suite | What it proves |
 |---|---|
-| `playtest` | Real browser boot, play, death, restart, pause, all panels, zero console errors |
+| `playtest` | Real browser boot, play, death, restart, pause, all panels, full screen, zero console errors |
 | `test:ui-fit` | Every panel button is reachable at five viewports — the game can always be restarted or left |
 | `test:audio` | All 33 synthesised voices make a sound, and nothing puts NaN on the master bus |
 | `test:touch` | The game is playable with a thumb: tap, and every swipe direction |

@@ -182,6 +182,32 @@ for (const [label, index] of [['missions', 0], ['achievements', 1], ['settings',
   await page.waitForTimeout(350);
 }
 
+// Full screen. A game that cannot fill the screen is not much of a game, and
+// this is the one control whose failure mode is silence: an embedded copy in a
+// frame without the permission simply does nothing when clicked.
+const fullscreen = { offered: false, entered: false, exited: false };
+{
+  const clicked = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('#menu button')]
+      .find((x) => /full screen/i.test(x.textContent || ''));
+    if (!b) return false;
+    b.click();
+    return true;
+  });
+  fullscreen.offered = clicked;
+  if (clicked) {
+    await page.waitForTimeout(600);
+    fullscreen.entered = await page.evaluate(() => !!document.fullscreenElement);
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')]
+        .find((x) => /full screen/i.test(x.textContent || ''));
+      b?.click();
+    });
+    await page.waitForTimeout(600);
+    fullscreen.exited = await page.evaluate(() => !document.fullscreenElement);
+  }
+}
+
 const report = {
   url: URL,
   boot: bootInfo,
@@ -200,6 +226,7 @@ const report = {
   resumeWorked: resumed,
   enteredRunForPause: inRun,
   panels,
+  fullscreen,
   errors,
   warnings: warnings.slice(0, 10),
 };
@@ -213,10 +240,20 @@ console.log(`geometries: ${firstGeo} -> ${maxGeo}  (growth ${report.geometryGrow
 console.log(`textures: ${report.texturesFinal}`);
 console.log(`distance reached: ${report.maxDistance} m, score ${report.finalScore}, coins ${report.finalCoins}`);
 console.log(`pause: ${paused}  resume: ${resumed}  panels: ${JSON.stringify(panels)}`);
+console.log(`full screen: ${JSON.stringify(fullscreen)}`);
 console.log(`console errors: ${errors.length}`);
 for (const e of errors.slice(0, 12)) console.log('  ERROR ' + e.slice(0, 400));
 console.log(`warnings: ${warnings.length}`);
 for (const w of warnings.slice(0, 6)) console.log('  warn  ' + w.slice(0, 200));
 
+// Reporting a result without gating on it is decoration. The full screen
+// control is held to actually working, because its failure mode is silence.
+const failures = [];
+if (errors.length > 0) failures.push(`${errors.length} console errors`);
+if (!fullscreen.offered) failures.push('no full screen control on the menu');
+else if (!fullscreen.entered) failures.push('the full screen control did not enter full screen');
+else if (!fullscreen.exited) failures.push('full screen could not be left again');
+for (const f of failures) console.log(`  FAIL ${f}`);
+
 await browser.close();
-process.exit(errors.length > 0 ? 1 : 0);
+process.exit(failures.length > 0 ? 1 : 0);
