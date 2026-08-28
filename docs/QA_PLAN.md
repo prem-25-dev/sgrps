@@ -1212,6 +1212,81 @@ only go full screen if the host grants it, and this one does not.
 full screen control has to exist and work. Reverting the constructor argument
 fails with "the canvas does not follow the window when it resizes".
 
+## A building planted in the middle of the track
+
+Reported as "what is this thing in between while I'm running? Remove this
+thing", with a screenshot of a dark portal spanning the rails ahead.
+
+**The first diagnosis was wrong.** A fast build, driven to the reported
+distance and photographed, looked like `TRK_Tunnel_01`, so the tunnel was
+removed. The sabotage pass is what caught it: putting the tunnel back into
+`TRACK_VARIANTS` produced no tunnel at all, which proved that list is a
+catalogue and not the selection path -- `TrackManager.variantFor` picks by
+zone with its own weights and never reads it. The only path that builds a
+tunnel is a Neon-zone special case, and the player was in `ZONE_CityEdge`.
+
+Probing the live scene by name instead of by eye gave the real answer:
+`STA_Entrance@x0,z34`. The station entrance, a 5.4 m concrete facade, was
+placed at `x = 0` -- straddling all three running lines, while every other
+station piece sits beside the track at ±10.2. It carried no collider, so it
+never read as an obstacle. It just looked solid and hid the track ahead.
+
+It now sits in the back wall of each platform, turned to face across it, and
+`test:zones` measures every piece of every station dressing against the
+corridor. Putting the entrance back at `x = 0` fails it by name.
+
+## Four things named for a behaviour they did not have
+
+The tunnel was innocent of the report, but not of everything, and chasing it
+turned up a pattern this codebase keeps repeating: a name that describes
+behaviour, and nothing implementing it.
+
+1. **The tunnel shell was a half-cylinder that was never spun about its own
+   axis**, so it was the *side* half -- a wall down one side of the track and
+   open sky down the other. Rotating it about the tunnel axis lifts the arch
+   overhead, springing from ground level at both haunches.
+2. **Its service lighting emitted no light.** The lamps are `MAT_NeonAmber`,
+   and an emissive material lights nothing -- they were fittings in a dark
+   room. The lining now carries a little emissive of its own and each lamp
+   throws an additive pool on the ballast.
+3. **`CFG.oncomingTrain.startsWithin` was dead config.** Its comment described
+   a train that stands in its segment until the player is close, so it does not
+   sweep back through whatever the generator placed behind it. Nothing read the
+   value. The train set off the moment it spawned 210 m out; measured, it
+   drifted 559 m over 1016 m of approach. Implementing the hold is strictly
+   safer than the fairness proof, which widens the hazard's Z span by its drift
+   across the whole crossing -- a train that spends part of that crossing
+   stationary can only arrive later than the proof allows.
+4. **The train's headlights were emissive too.** The one hazard that closes
+   faster than anything else announced itself with two dull spots. There is now
+   a real `SpotLight` that rides the nearest oncoming train and brightens as it
+   closes.
+
+### Why the headlight is not parented to the train
+
+Because a light that streams in and out with a pooled object changes the
+scene's light count, and three.js recompiles every shader when that number
+moves -- a hitch at every portal and every train. The rig allocates one light
+at boot, moves it onto whichever train is nearest, and parks it by driving
+intensity to zero. The tunnel lamps are additive floor decals for the same
+reason.
+
+### The sabotage that walked straight through the guard
+
+The check written to protect that invariant counted lights with
+`scene.traverse`. Parking the headlight with `visible = false` instead of
+intensity -- exactly the mistake the design exists to prevent -- passed it
+cleanly, 25 of 25.
+
+`traverse` visits invisible objects; the renderer does not. Only lights the
+renderer actually walks are uploaded, so hiding one drops it from the count and
+triggers the recompile. The counter uses `traverseVisible` now, and the same
+sabotage fails with "light count moved away from 4".
+
+Three sabotages, three catches, after the fix: removing the hold fails with the
+559 m drift, zeroing the headlight fails with "brightest was 0", and hiding it
+fails on the light count.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

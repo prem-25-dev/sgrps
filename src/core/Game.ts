@@ -489,6 +489,8 @@ export class Game {
     if (s.sliding) this.vfx.play('VFX_SlideSparks', s.x, s.y, 0, 0.6);
     if (this.powerUps.speedMultiplier > 1) this.vfx.play('VFX_Boost', s.x, s.y, 0, 0.5);
 
+    this.lighting.aimHeadlight(this.track.nearestOncoming(s.distance), dt);
+
     this.audio.setIntensity(speedT);
     this.audio.setTrainProximity(this.track.trainProximity(s.distance));
 
@@ -516,6 +518,8 @@ export class Game {
   }
 
   private updateMenu(dt: number): void {
+    // No train is bearing down on the menu.
+    this.lighting.aimHeadlight(null, dt);
     this.animator.update(dt, {
       speed: 0, grounded: true, verticalVelocity: 0, airProgress: 0, slideProgress: 0,
       laneDir: 0, laneProgress: 1, laneQuick: false, cameraDistance: 3.2,

@@ -33,6 +33,9 @@ export class LightingRig {
   readonly sun: THREE.DirectionalLight;
   readonly ambient: THREE.HemisphereLight;
   readonly fill: THREE.DirectionalLight;
+  /** Rides the nearest oncoming train; dark when there is none. */
+  readonly headlight: THREE.SpotLight;
+  private headlightLevel = 0;
   readonly sky: THREE.Mesh;
   readonly ground: THREE.Mesh;
 
@@ -59,6 +62,26 @@ export class LightingRig {
     this.fill = new THREE.DirectionalLight(0x9fc2ff, 0.55);
     this.fill.position.set(26, 18, -34);
     scene.add(this.fill);
+
+    // The oncoming service train's headlight.
+    //
+    // The train has carried emissive lamps on its nose since it was modelled,
+    // and an emissive material lights nothing: the one hazard that closes on
+    // the player faster than anything else announced itself with two dull
+    // spots. This is a real light, and it is allocated once here rather than
+    // parented to the train, because a light that streams in and out with a
+    // pooled object changes the scene's light count, and three.js recompiles
+    // every shader when that happens. One light, moved onto whichever train is
+    // nearest and dimmed to nothing when there is none.
+    // It is parked by intensity, never by `visible`: the renderer skips
+    // invisible objects entirely, so hiding a light drops it from the light
+    // count and costs exactly the recompile this design avoids.
+    this.headlight = new THREE.SpotLight(0xfff2d0, 0, 150, 0.42, 0.45, 1.1);
+    this.headlight.name = 'ENV_TrainHeadlight';
+    this.headlight.position.set(0, 2.2, 90);
+    this.headlight.target.position.set(0, 0, 0);
+    scene.add(this.headlight);
+    scene.add(this.headlight.target);
 
     // Sky dome: a vertical gradient, cheap and always behind everything.
     const skyGeo = new THREE.SphereGeometry(400, 24, 16);
@@ -148,6 +171,36 @@ export class LightingRig {
   fitTo(far: number): void {
     const radius = (this.sky.geometry as THREE.SphereGeometry).parameters.radius;
     this.sky.scale.setScalar(Math.max(0.05, (far * 0.85) / radius));
+  }
+
+  /**
+   * Puts the headlight on an oncoming train's nose, aimed down the track at
+   * the player. Pass null when no train is near and it fades to nothing.
+   *
+   * The beam brightens as the train closes, so a train 140 m out is a glow on
+   * the ballast and one at 20 m is glare — the distance is readable before the
+   * shape is.
+   */
+  aimHeadlight(nose: { x: number; z: number } | null, dt: number): void {
+    const target = nose ? Math.min(1, Math.max(0, 1 - (nose.z - 6) / 120)) : 0;
+    // Eased rather than snapped: the nearest train changes the instant one is
+    // recycled, and a light that jumps between lanes reads as a flicker. It
+    // drops away faster than it comes up, because the position it is fading
+    // from belongs to a train that is no longer there.
+    //
+    // Framed off dt rather than off the frame: a per-frame fraction fades in a
+    // quarter of a second at 60 fps and instantly at the 1 fps a software
+    // rasteriser manages, which is the same trap the browser suites keep
+    // falling into with fixed waits.
+    const rate = nose ? 7 : 24;
+    this.headlightLevel += (target - this.headlightLevel) * (1 - Math.exp(-rate * dt));
+    if (this.headlightLevel < 0.004) this.headlightLevel = 0;
+    if (nose) {
+      this.headlight.position.set(nose.x, 1.35, nose.z - 0.3);
+      this.headlight.target.position.set(nose.x, 0.2, nose.z - 26);
+      this.headlight.target.updateMatrixWorld();
+    }
+    this.headlight.intensity = this.headlightLevel * 240;
   }
 
   setShadows(enabled: boolean): void {

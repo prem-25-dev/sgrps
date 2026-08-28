@@ -122,7 +122,7 @@ export class TrackManager {
     this.decor.update(dt, distance);
     this.ambientTrains.update(dt, distance);
     for (const train of this.trains) train.update(dt, this.time);
-    this.updateDynamics(dt);
+    this.updateDynamics(dt, distance);
   }
 
   /** Generates and spawns until the world extends past the view distance. */
@@ -264,8 +264,21 @@ export class TrackManager {
   }
 
   /** Moving hazards drift, and sliding barriers sweep across their lane. */
-  private updateDynamics(dt: number): void {
+  private updateDynamics(dt: number, distance: number): void {
     for (const o of this.activeObstacles) {
+      // A service train stands in its segment until the player is close, then
+      // runs. `startsWithin` has described that behaviour in the config since
+      // it was written and nothing implemented it, so the train set off the
+      // moment it was spawned 210 m out and swept back through whatever the
+      // generator had placed behind it. Holding it is also strictly safer than
+      // the fairness proof: the solver widens the hazard's Z span by its drift
+      // across the whole crossing, so a train that spends part of that
+      // crossing stationary can only arrive later than the proof allows.
+      // Scoped to trains on purpose: a dynamic obstacle's drift is a small
+      // random value that can also be negative, and holding those still would
+      // be a silent behaviour change to every moving hazard in the game.
+      if (o.def.category === 'train' && o.driftZ < 0 &&
+          o.z - distance > CFG.oncomingTrain.startsWithin) continue;
       if (o.driftZ !== 0) o.z += o.driftZ * dt;
       if (o.driftX !== 0) {
         // Oscillates within the lane rather than wandering into another one,
@@ -280,6 +293,22 @@ export class TrackManager {
         o.object.rotation.x = -this.time * 3.4;
       }
     }
+  }
+
+  /**
+   * The nose of the nearest oncoming service train ahead, in view space, or
+   * null when none is close enough to matter. Drives the headlight.
+   */
+  nearestOncoming(distance: number): { x: number; z: number } | null {
+    let nearest: ActiveObstacle | null = null;
+    for (const o of this.activeObstacles) {
+      if (o.driftZ >= 0 || o.def.category !== 'train') continue;
+      const z = o.z - distance;
+      if (z < -o.def.depth / 2 || z > 170) continue;
+      if (!nearest || z < nearest.z - distance) nearest = o;
+    }
+    if (!nearest) return null;
+    return { x: nearest.x, z: nearest.z - distance - nearest.def.depth / 2 };
   }
 
   /** Nearest train ahead, 0..1, used to drive the rolling-stock audio bed. */

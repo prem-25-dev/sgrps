@@ -356,14 +356,18 @@ function liningMaterial(): THREE.MeshStandardMaterial {
 let lampPool: THREE.Material | null = null;
 function poolMaterial(): THREE.Material {
   if (!lampPool) {
+    const map = radialFalloff();
     lampPool = new THREE.MeshBasicMaterial({
       color: 0xffc27a,
-      map: radialFalloff() ?? undefined,
       transparent: true,
       opacity: 0.32,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+    // Assigned rather than passed: three.js warns when a material parameter is
+    // present with an undefined value, and the headless harness has no canvas
+    // to draw the falloff on.
+    if (map) (lampPool as THREE.MeshBasicMaterial).map = map;
   }
   return lampPool;
 }
