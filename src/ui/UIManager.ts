@@ -244,8 +244,8 @@ export class UIManager {
 
     const fs = this.fullscreenButton();
     if (fs) {
-      fs.style.width = '100%';
-      actions.appendChild(fs);
+      fs.button.style.width = '100%';
+      actions.append(fs.button, fs.note);
     }
     top.appendChild(actions);
 
@@ -317,9 +317,13 @@ export class UIManager {
     this.missionTrackEl = el('div', 'mission-track');
     screen.appendChild(this.missionTrackEl);
 
+    // Not on this screen: the HUD is hidden outside a run, and a message
+    // raised from the menu — "this page cannot go full screen", say — would
+    // never be seen. Toasts live on the interface root so they show wherever
+    // they are raised from.
     this.toastsEl = el('div');
     this.toastsEl.id = 'toasts';
-    screen.appendChild(this.toastsEl);
+    this.root.appendChild(this.toastsEl);
 
     this.zoneBanner = el('div', 'zone-banner');
     screen.appendChild(this.zoneBanner);
@@ -451,7 +455,7 @@ export class UIManager {
     home.addEventListener('click', () => { this.click(); this.callbacks.onHome(); });
     actions.append(resume, settings, home);
     const fs = this.fullscreenButton();
-    if (fs) panel.appendChild(fs);
+    if (fs) panel.append(fs.button, fs.note);
     panel.appendChild(actions);
     screen.appendChild(panel);
   }
@@ -461,23 +465,36 @@ export class UIManager {
    * Safari), and it says so if the attempt is refused — which is what happens
    * when the game is embedded in a frame that was not given the permission.
    */
-  private fullscreenButton(cls = 'small'): HTMLElement | null {
+  private fullscreenButton(cls = 'small'): { button: HTMLElement; note: HTMLElement } | null {
     if (!fullscreen.available()) return null;
     const b = el('button', cls);
     b.style.justifyContent = 'center';
+
+    // A refused request needs to say so somewhere that stays put. A toast is
+    // gone in a second and a half, and this is the one message a player has to
+    // act on rather than just notice.
+    const note = el('div', 'hint');
+    note.style.display = 'none';
+    note.style.marginTop = 'calc(var(--u) * 0.4)';
+
     const label = () => { b.textContent = fullscreen.isFullscreen() ? 'Exit full screen' : 'Full screen'; };
     label();
     b.addEventListener('click', async () => {
       this.click();
       const ok = await fullscreen.toggle(document.documentElement);
-      if (!ok) {
-        this.toast('This page cannot go full screen. Open it in its own tab.', 'bad');
+      if (ok) {
+        note.style.display = 'none';
+      } else {
+        // Embedded in a frame that was not granted the permission. Nothing the
+        // page can do about it from the inside, so say what will work.
+        note.textContent = 'This window will not allow full screen. Open the game in its own browser tab.';
+        note.style.display = 'block';
       }
       label();
     });
     // UIManager lives for the page, so this listener is never removed.
     fullscreen.onChange(label);
-    return b;
+    return { button: b, note };
   }
 
   // -------------------------------------------------------------- Game over

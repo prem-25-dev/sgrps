@@ -1174,6 +1174,44 @@ not because the generator refused anything higher.
 `CFG.oncomingTrain.speedFactor` is the knob, and this table is the reason to be
 careful with it.
 
+## The picture was pinned to the size the page opened at
+
+Reported as "after clicking full screen it's not becoming full screen", with a
+screenshot that showed something else as well: the game filling only the left
+half of a wide panel, black beside it.
+
+Two separate faults, and only one of them was about full screen.
+
+**The canvas never followed the window.** `Game`'s constructor called
+`renderer.setSize(w, h)` without the third argument, so three.js wrote an
+inline `width: 700px; height: 760px` onto the canvas element. Every later
+resize called `setSize(w, h, false)`, which deliberately leaves the style
+alone — so the drawing buffer grew and the displayed size did not. Open the
+game in a narrow panel, widen the panel, and the picture stays the width it
+started at forever. Measured on a frame widened from 700 to 1360: buffer 1360,
+CSS width still 700.
+
+The constructor now passes `false` too, and the stylesheet's
+`canvas { width: 100%; height: 100% }` drives the displayed size — which is
+what it was always there for. A `ResizeObserver` on the container was added
+alongside the window listener, because an embedded copy can change size without
+the viewport doing anything.
+
+**And the refusal was invisible.** The full screen control did report being
+refused, via `toast()` — but `#toasts` was appended to the HUD screen, and the
+HUD is hidden outside a run, so a message raised from the menu went into a
+`display: none` subtree. It has moved to the interface root. The full screen
+refusal now also writes a line that stays put rather than a toast that is gone
+in a second and a half, because it is the one message the player has to act on:
+open the game in its own tab.
+
+The embed itself cannot be fixed from inside the page. A cross-origin frame can
+only go full screen if the host grants it, and this one does not.
+
+`playtest` gates on both: the canvas has to follow a viewport change, and the
+full screen control has to exist and work. Reverting the constructor argument
+fails with "the canvas does not follow the window when it resizes".
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

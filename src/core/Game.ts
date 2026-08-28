@@ -94,7 +94,14 @@ export class Game {
       powerPreference: 'high-performance',
       stencil: false,
     });
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
+    // `false` matters: without it three.js writes an inline `width: 700px` on
+    // the canvas, and every later resize passes `false` and never updates it,
+    // so the canvas stays pinned to whatever size the page first opened at.
+    // Opening the game in a narrow panel and then widening it left the picture
+    // at its original width with black beside it. The stylesheet's
+    // `canvas { width: 100%; height: 100% }` drives the displayed size; this
+    // only ever sets the drawing buffer.
+    this.renderer.setSize(container.clientWidth, container.clientHeight, false);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -563,6 +570,13 @@ export class Game {
 
   private bindWindowEvents(): void {
     window.addEventListener('resize', () => this.resize());
+    // A window resize is not the only way the picture changes size: embedded in
+    // a panel that can be widened, the element resizes without the viewport
+    // necessarily doing anything interesting. Watch the container itself.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.containerObserver = new ResizeObserver(() => this.resize());
+      this.containerObserver.observe(this.container);
+    }
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.state.is(GameState.PLAYING, GameState.TUTORIAL)) this.togglePause();
     });
@@ -572,6 +586,8 @@ export class Game {
     window.addEventListener('beforeunload', () => this.save.flush(true));
   }
 
+  private containerObserver?: ResizeObserver;
+
   resize(): void {
     const width = this.container.clientWidth || window.innerWidth;
     const height = this.container.clientHeight || window.innerHeight;
@@ -580,6 +596,7 @@ export class Game {
   }
 
   dispose(): void {
+    this.containerObserver?.disconnect();
     this.stop();
     this.input.dispose();
     this.audio.dispose();
