@@ -33,11 +33,7 @@ import { Tutorial } from './Tutorial';
  * consistent view of the frame.
  */
 
-const QUALITY_PROFILE = {
-  low: { pixelRatio: 1.0, shadowSize: 0, decorDensity: 0.5, viewScale: 0.75, particleScale: 0.5 },
-  medium: { pixelRatio: 1.25, shadowSize: 1024, decorDensity: 0.8, viewScale: 0.9, particleScale: 0.8 },
-  high: { pixelRatio: 2.0, shadowSize: 2048, decorDensity: 1.0, viewScale: 1.0, particleScale: 1.0 },
-} as const;
+const QUALITY_PROFILE = CFG.quality;
 
 export class Game {
   readonly scene = new THREE.Scene();

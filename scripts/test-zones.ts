@@ -1,4 +1,5 @@
 import { DecorScatter } from '../src/world/DecorScatter';
+import { CFG } from '../src/core/Config';
 import { ZONES, zoneAt } from '../data/difficulty/zones';
 
 /**
@@ -71,12 +72,36 @@ check('every zone in the schedule is reachable', ZONES.length >= 7, `${ZONES.len
   check('every zone has a usable fog range', bad.length === 0,
     bad.map((z) => `${z.id} ${z.fog.near}..${z.fog.far}`).join(', '));
 
-  // The sky dome is scaled to sit inside the camera's far plane, which is
-  // 420 m at full quality and 315 m on the low profile. A zone whose fog
-  // reached past that would show a hard edge where the world simply stopped.
-  const tooFar = ZONES.filter((z) => z.fog.far > 420);
-  check('no zone fogs out beyond the far plane', tooFar.length === 0,
-    tooFar.map((z) => `${z.id} far ${z.fog.far}`).join(', '));
+  // The camera's far plane scales with quality: 420 m at high, 315 m on low.
+  // A zone is allowed to fog out past the low plane — ZONE_Elevated does, at
+  // 340 — because the renderer clears to the fog colour, so ground cut by the
+  // far plane meets a backdrop of exactly the haze it was fading into.
+  //
+  // What that mitigation cannot absorb is a zone whose fog is so long that the
+  // ground is still obviously itself where the plane cuts it. So the residual
+  // is what gets checked, not the distance: how far the ground still is from
+  // fog colour at the cut. ZONE_Elevated leaves 8 levels of 255 and
+  // ZONE_CityEdge 2; a zone fogging to 800 m would leave 55 and draw a line
+  // across the horizon.
+  //
+  // (This replaced a check against 420 whose own comment described 315. The
+  // assertion had never matched the invariant it was written for, and the
+  // invariant it described was not the one the renderer actually relies on.)
+  const nearestFar = CFG.camera.far * Math.min(...Object.values(CFG.quality).map((q) => q.viewScale));
+  const residual = (z: (typeof ZONES)[number]): number => {
+    const reached = Math.min(1, Math.max(0, (nearestFar - z.fog.near) / (z.fog.far - z.fog.near)));
+    const ground = [(z.ground >> 16) & 255, (z.ground >> 8) & 255, z.ground & 255];
+    const fog = [(z.fog.color >> 16) & 255, (z.fog.color >> 8) & 255, z.fog.color & 255];
+    return Math.max(...ground.map((g, i) => Math.abs(g - fog[i]) * (1 - reached)));
+  };
+  const MAX_RESIDUAL = 16;
+  const harsh = ZONES.filter((z) => residual(z) > MAX_RESIDUAL);
+  check(`no zone leaves a visible edge where the far plane cuts it (${Math.round(nearestFar)} m)`,
+    harsh.length === 0,
+    harsh.map((z) => `${z.id} fog ${z.fog.far} leaves ${Math.round(residual(z))}/255`).join(', '));
+  console.log(`  worst residual at the ${Math.round(nearestFar)} m plane: ` +
+    ZONES.map((z) => `${z.id.replace('ZONE_', '')} ${Math.round(residual(z))}`)
+      .sort((a, b) => Number(b.split(' ')[1]) - Number(a.split(' ')[1]))[0]);
 }
 
 // --------------------------------------------------------- actual content

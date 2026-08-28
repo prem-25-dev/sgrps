@@ -773,6 +773,42 @@ lane, Z and drift, every coin, every power-up, the exit lanes. Same seed must
 give the same sixty; different seeds must not. The hard-wired generator fails
 the second, and a generator that jitters its seed by one fails the first.
 
+## A fourth negative result, and the guard it left behind
+
+Two zones fog out past the low quality profile's far plane — `ZONE_Elevated`
+at 340 m, `ZONE_CityEdge` at 320 m, against a plane at 315 m. That looked like
+the same family as the sky-dome bug: a view distance that scales with quality
+while something else stays fixed.
+
+It is not a bug. `ZoneManager` already clears the renderer to the fog colour
+for exactly this reason, and says so in a comment: ground cut by the far plane
+meets a backdrop of precisely the haze it was fading into. The arithmetic
+bounds what is left over — at 315 m, `ZONE_Elevated`'s fog has run 91.2% of its
+range, so the ground is still 8 levels of 255 from fog colour where it is cut,
+and `ZONE_CityEdge` 2. A step of 8/255 across a hazed horizon, on one zone, at
+one quality setting.
+
+An attempt to photograph it was abandoned rather than trusted: the sampling
+column at 12% of the frame width runs through world geometry, not sky, and it
+reported a step of 344 at high quality where there is nothing wrong. Rebuilding
+it into an instrument that reliably finds the horizon across seven zones is
+more machinery than an 8-level step justifies — the same call made earlier
+about the colour-space seam.
+
+What did come out of it is that `test:zones` had never checked what its own
+comment described. The comment named the low profile's 315 m plane and warned
+of "a hard edge where the world simply stopped"; the assertion compared against
+420, the *high* profile, which no zone could ever exceed. It could not fail.
+
+The check now measures the residual rather than the distance: how far the
+ground still is from fog colour where the plane cuts it, against whichever
+profile has the shortest view. Zones stay free to fog past the plane, because
+the clear colour absorbs it; what they cannot do is fog so far that the ground
+is still visibly itself at the cut. Sabotage from both ends — a zone fogged to
+800 m, and a `viewScale` dropped to 0.4 — is caught, the second flagging five
+zones at once. `QUALITY_PROFILE` moved from `Game` into `CFG` so the test reads
+the same numbers the renderer does rather than a copy that could drift.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

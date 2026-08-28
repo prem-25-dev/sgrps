@@ -94,6 +94,17 @@ export const CFG = {
     far: 420,
   },
 
+  /**
+   * Render profiles. These live here rather than in `Game` because they are
+   * tuning, and because `viewScale` moves the camera's far plane — which is
+   * the number a zone's fog has to be checked against.
+   */
+  quality: {
+    low: { pixelRatio: 1.0, shadowSize: 0, decorDensity: 0.5, viewScale: 0.75, particleScale: 0.5 },
+    medium: { pixelRatio: 1.25, shadowSize: 1024, decorDensity: 0.8, viewScale: 0.9, particleScale: 0.8 },
+    high: { pixelRatio: 2.0, shadowSize: 2048, decorDensity: 1.0, viewScale: 1.0, particleScale: 1.0 },
+  },
+
   score: {
     /** Points per metre before multipliers. */
     perMetre: 1.0,
