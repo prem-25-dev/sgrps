@@ -79,13 +79,34 @@ rooftop routes real rather than decorative.
 
 Every obstacle teaches one verb, and its geometry tells you which:
 
-- **Ground** (top 0.85–1.25 m) — jump, or change lane.
-- **Overhead** (underside at 1.0 m+) — slide, or change lane.
-- **Full height** — change lane; there is no other answer.
-- **Ramps** — run up them; they are how you reach the roofs.
-- **Trains** — block a lane entirely, and their roofs are a route.
+- **Ground** (top 0.85–1.35 m) — jump, or change lane.
+- **Overhead** (underside at 1.05 m+) — slide, or change lane. The number that
+  matters is the 0.85 m sliding collider; the tightest clearance is 0.20 m.
+- **Full height** — change lane. That is the answer the game guarantees, and
+  for three of the five archetypes it is the only one.
+- **Ramps** — run up them; they are how you reach the roofs. They live in the
+  ground category but are their own verb, and rise to 1.60 m, above the band
+  above, because you are not meant to jump them.
+- **Trains** — block a lane entirely; the two parked cars have roofs that are a
+  route, the moving one does not.
 - **Dynamic** — trolleys, drums, swinging signs, sliding barriers, falling
-  crates. They only appear above ~0.5 difficulty.
+  crates. The generator opens moving hazards at 0.45 difficulty, but every
+  dynamic archetype carries its own gate of 0.55 or higher, so none can appear
+  before then.
+
+Two full-height archetypes are passable without changing lane, measured by
+flying the real controller at them: **OBS_Container_01** at 2.55 m is standable
+and is the rooftop route this document celebrates two sections up, and
+**OBS_FencePanel_01** at 2.40 m is only 0.16 m deep, so a held jump carries you
+over it at every speed. The other three cannot be cleared at any speed or
+timing — including OBS_SignalBox_01 at 2.60 m, which is under the 2.70 m jump
+peak but 1.4 m deep, so the player is descending before they are past it.
+
+Their `requiredActions` stays lane-change-only regardless, on purpose: it is
+what the fairness solver plans with, and a guarantee that depends on
+frame-perfect timing is not a guarantee. `test:vocabulary` pins both the
+geometry and the measured behaviour, so an edit that takes the rooftop route
+away — or makes a wall hoppable — is visible.
 
 33 archetypes. The metadata each one carries (`requiredActions`, height,
 `standable`, `slope`) is the contract the fairness engine reasons about.

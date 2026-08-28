@@ -57,6 +57,7 @@ npm run playtest     # boots the real game in Chromium and plays it
 | `test:animation` | No NaN in the rig, feet stay on the deck, and a planted foot does not slide at any speed |
 | `test:vfx` | Every effect emits, the shared particle pool never overflows and always drains |
 | `test:zones` | All seven zones are distinct and none is an empty corridor |
+| `test:vocabulary` | Every obstacle's geometry matches the verb it teaches, measured by flying the real controller at it |
 | `test:scoring` | The score formula matches the published one, and every multiplier the game advertises can be reached |
 | `test:difficulty` | The pacing curve is where it was tuned, in metres, and relief and the tutorial ceiling both work |
 | `test:camera` | The player is framed where the camera was tuned to frame them, at every speed, lane and height |

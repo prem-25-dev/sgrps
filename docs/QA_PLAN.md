@@ -975,6 +975,78 @@ has both links — config against the document, behaviour against config. A
 retune has to move the document too, which is the point: those numbers are
 published to the player as the rules of the game.
 
+## The verb every obstacle teaches
+
+"Every obstacle teaches one verb, and its geometry tells you which." That
+sentence in `GAME_DESIGN.md` is the contract the affordance design rests on —
+it is the reason the colourblind audit concluded no colourblind mode was
+needed, since what an obstacle demands is carried by silhouette rather than
+colour. Nothing checked it, and three of the published bands did not match the
+data.
+
+`test:vocabulary` checks both halves. The geometric assertions read the
+archetype table; the behavioural ones fly the real `PlayerController` at the
+real `CollisionSystem`, because the arithmetic is not trustworthy here — a
+point-mass estimate said a 2.6 m signal box was clearable above 17 m/s, and it
+is not clearable at any speed or timing.
+
+What the measurement found, and what the document now says:
+
+- **Ground is 0.85–1.35 m**, not 0.85–1.25: `OBS_CableDrum_01` is 1.35. Ramps
+  sit in the same category but are their own verb and rise to 1.60 m, above
+  the band, because they are run up rather than jumped.
+- **Overhead undersides start at 1.05 m**, and the number that matters is not
+  the documented 1.0 but the 0.85 m sliding collider. Tightest clearance is
+  0.20 m.
+- **"Full height — there is no other answer" is true of three of five.**
+  `OBS_Container_01` at 2.55 m is standable and is the rooftop route the same
+  document celebrates two sections earlier. `OBS_FencePanel_01` at 2.40 m is
+  0.16 m deep, and a held jump carries the player over it at every speed
+  tested. The other three cannot be cleared at all — including the signal box,
+  which is under the 2.70 m jump peak but 1.4 m deep, so the player is
+  descending before they are past it.
+- **Dynamic hazards** are gated per archetype at 0.55 and above, so the "~0.5"
+  claim holds even though the generator's `dynamicChance` opens at 0.45.
+
+`requiredActions` stays lane-change-only on all five full-height archetypes
+deliberately, and the suite asserts the measured set rather than changing the
+data: it is what the fairness solver plans with, and a guarantee that depends
+on frame-perfect timing is not a guarantee. Pinning the behaviour means an edit
+that takes the rooftop route away, or makes a wall hoppable, is visible.
+
+### Two harness lessons, one of them a repeat
+
+The first version of the jump probe reported that **nothing** was clearable —
+including the container, which the design document explicitly says the jump
+clears. A uniform negative across five obstacles, one of them known-positive,
+is an instrument failure rather than a finding. The cause was already written
+down in this file: the probe sent keyup every frame, and releasing early runs
+the ascent at `cutMultiplier` gravity, peaking at 1.29 m instead of 2.70 m.
+The shared rig now carries that warning in its own header, where the next
+person to write a probe will see it.
+
+The probe was also 900 simulations per obstacle, sweeping the whole approach.
+The apex is `velocity / |gravity|` seconds after takeoff, so the timing that
+can work is a jump started about `speed × apexTime` metres out; searching a
+narrow window around that finds the same two archetypes and brings the suite
+to 19 seconds.
+
+One sabotage pass also failed to apply — the pattern said `width: 2.4` where
+the data says `2.3` — and reported a clean run. Checking that the edit landed
+before believing the result is the difference between "the test is weak" and
+"the sabotage missed", and this is the second time in this session that
+distinction mattered.
+
+Five sabotage passes now, each caught: a banner dropped below the sliding
+collider, a moving hazard eligible in the warm-up, the fence panel raised out
+of jump range, a weaker jump, and a taller sliding collider.
+
+### The rig is now shared
+
+`makeHarness` moved out of `test-gameplay.ts` into `scripts/harness.ts`, so
+suites drive the same game rather than a copy of it. `test:gameplay` still
+passes 46 of 46 across the move.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

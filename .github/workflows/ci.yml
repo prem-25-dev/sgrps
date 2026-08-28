@@ -58,6 +58,9 @@ jobs:
       - name: Zones
         run: npm run test:zones
 
+      - name: Obstacle vocabulary
+        run: npm run test:vocabulary
+
       - name: Scoring
         run: npm run test:scoring
 
