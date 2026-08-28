@@ -809,6 +809,68 @@ is still visibly itself at the cut. Sabotage from both ends — a zone fogged to
 zones at once. `QUALITY_PROFILE` moved from `Game` into `CFG` so the test reads
 the same numbers the renderer does rather than a copy that could drift.
 
+## Six green ticks on a camera aimed at nothing
+
+The chase camera existed for the whole build without a single assertion. It is
+pure maths — a `PerspectiveCamera` and a `PlayerState` in, a pose out — so it
+can be driven headlessly and the hero projected into clip space to see where
+they actually land in frame. `test:camera` does that across every speed, lane
+and height the game can produce, plus the transients a screenshot rarely
+catches: the top of a jump at maximum speed, the frame after mounting a train
+roof, a slide during a lane change, and the game-over swing.
+
+**The camera is sound. The first version of the test was not.** It passed six
+of six on the first run, and then passed six of six again with the deck clamp
+deleted, with the smoothing hard-coded to a frame-rate-dependent constant, and
+with the camera aimed 57 m past the player. Three sabotage passes, three
+silent survivals — the same fault as the contrast instruments, in its purest
+form: assertions written to describe what the code does rather than to
+constrain it.
+
+Each one failed for its own reason, and all three are worth recording because
+they are the standard ways a test of a smoothed system fools its author.
+
+**"Inside the frustum" is not framing.** The original check asked whether the
+hero projected within the clip cube with a margin. A camera pointed almost
+anywhere satisfies that. Replaced with a band measured from the real camera —
+head between -0.335 and 0.099, feet between -0.593 and -0.229, horizontal
+offset never past 0.087 — with the bounds set just outside. That makes it a
+regression bound on framing tuned by eye, not a claim about visibility, and
+the comment says so: retuning the camera is *expected* to fail it, and the
+numbers should then be re-measured and moved deliberately rather than widened
+until it goes quiet.
+
+**A scenario that never reaches the condition.** The clamp keeps the camera
+from sinking through the surface underfoot. At rest it is never close: on the
+tallest standable surface the game builds — a 3.15 m train car — the settled
+camera still floats 2.2 m above it, and the clamp's steady-state condition is
+unreachable below a 5.4 m surface. It exists purely for the transient. The
+first test used a 2.7 m roof and no landing impact, which lands within a
+millimetre of the clamp without ever crossing it. Now it uses the real tallest
+surface and the impact a landing adds — and asserts the bound is *reached* as
+well as respected, so a scenario that drifts away from the condition fails
+instead of quietly proving nothing.
+
+**Comparing where two runs end, when both converge.** Frame-rate independence
+was checked by running two seconds at 30 fps and at 240 fps and comparing the
+final position. Both converge on the same fixed point whatever the smoothing
+does, which is why `k = 0.25` sailed through. The whole trajectory is compared
+now — and that exposed two further faults in the measurement itself. Sampling
+after an equal number of *updates* compares different instants and reported
+53.9 cm of "divergence" from a correct camera; sampling by elapsed time cut it
+to 7.8 cm. The remainder was also the test's: a sine trajectory sampled on two
+grids is two different input signals, and a camera is a filter, so it was
+reporting the difference in its input as a difference in itself. Driven with a
+step whose edges land exactly on both grids, the divergence is 0.00 cm — the
+camera is frame-rate independent to the precision measured, which is what the
+class claimed all along.
+
+Five sabotage passes now, each caught by the assertion that should catch it:
+the clamp removed (dips to 0.693 m), fixed smoothing (85.8 cm apart), aiming
+too far ahead (feet to -0.709), the camera no longer strafing with the lane
+(head to -0.182), and the camera barely rising with the player (head to 0.354
+on a roof-jump).
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

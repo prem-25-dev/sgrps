@@ -58,6 +58,9 @@ jobs:
       - name: Zones
         run: npm run test:zones
 
+      - name: Chase camera
+        run: npm run test:camera
+
       - name: Seed determinism
         run: npm run test:determinism
 
