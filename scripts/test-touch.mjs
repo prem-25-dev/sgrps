@@ -53,6 +53,35 @@ const swipe = (dx, dy) => page.evaluate(({ dx, dy }) => {
   window.dispatchEvent(event('touchend', x0 + dx, y0 + dy));
 }, { dx, dy });
 
+/**
+ * Wait for the simulation, not the clock.
+ *
+ * A lane change takes 0.17 s of *simulated* time, which is a fraction of one
+ * frame at 60 fps and rather more than one at the 0.8-1.3 fps a software
+ * rasteriser manages once the world is actually being drawn. Fixed
+ * `waitForTimeout` calls sized for the old frame rate started failing the
+ * moment the camera was pointed at the scene and the renderer had 800 draw
+ * calls to make instead of 250 — the game was right and the wait was short.
+ *
+ * `settle` waits for a condition; `advance` gives the game a fair number of
+ * frames to do something, and is how you check that nothing happens.
+ */
+// The argument comes before the options, and putting it in the wrong slot is
+// the trap this repo has already been caught by once: `waitForFunction(fn, N)`
+// reads N as the polling argument, and `waitForFunction(fn, null, N)` reads N
+// as options. Both fail quietly rather than loudly.
+const settle = (fn, arg = null, timeout = 60000) =>
+  page.waitForFunction(fn, arg, { timeout }).then(() => true).catch(() => false);
+
+const advance = async (frames = 6) => {
+  const from = await page.evaluate(() => window.game?.renderer?.info?.render?.frame ?? 0);
+  await page.waitForFunction(
+    (f) => (window.game?.renderer?.info?.render?.frame ?? 0) > f,
+    from + frames - 1,
+    { timeout: 60000 },
+  ).catch(() => {});
+};
+
 const state = () => page.evaluate(() => {
   const s = window.game.player.state;
   return { lane: s.lane, y: s.y, sliding: s.sliding, jumping: s.jumping };
@@ -68,38 +97,41 @@ const started = await page.waitForFunction(
 check('a tap on the play surface starts a run', started);
 
 if (started) {
-  await page.waitForTimeout(1500);
+  // Let the run get going, in frames rather than seconds.
+  await advance(4);
   const before = await state();
 
   await swipe(-90, 0);
-  await page.waitForTimeout(1200);
+  await settle((l) => window.game.player.state.lane < l, before.lane);
   const left = await state();
   check('swiping left changes lane', left.lane < before.lane,
     `lane ${before.lane} -> ${left.lane}`);
 
   await swipe(90, 0);
-  await page.waitForTimeout(1200);
+  await settle((l) => window.game.player.state.lane > l, left.lane);
   const right = await state();
   check('swiping right changes lane back', right.lane > left.lane,
     `lane ${left.lane} -> ${right.lane}`);
 
   await swipe(0, -90);
-  await page.waitForTimeout(300);
+  await settle(() => window.game.player.state.y > 0.2);
   const up = await state();
   check('swiping up jumps', up.jumping && up.y > 0.2, `y ${up.y.toFixed(2)}`);
 
   // Let the jump finish before asking for a slide.
-  await page.waitForTimeout(2500);
+  await settle(() => window.game.player.state.grounded);
   await swipe(0, 90);
-  await page.waitForTimeout(400);
+  await settle(() => window.game.player.state.sliding);
   const down = await state();
   check('swiping down slides', down.sliding === true, JSON.stringify(down));
 
-  // A swipe shorter than the threshold must not be read as a direction.
-  await page.waitForTimeout(1200);
+  // A swipe shorter than the threshold must not be read as a direction. This
+  // one asserts that nothing happens, so it gives the game a fair number of
+  // frames to do the wrong thing rather than waiting on a condition.
+  await settle(() => !window.game.player.state.sliding);
   const beforeNudge = await state();
   await swipe(8, 0);
-  await page.waitForTimeout(600);
+  await advance(6);
   const nudge = await state();
   check('a movement under the swipe threshold is not a lane change',
     nudge.lane === beforeNudge.lane, `lane ${beforeNudge.lane} -> ${nudge.lane}`);

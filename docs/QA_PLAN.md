@@ -1085,6 +1085,46 @@ The lesson is not "add a frustum check". It is that every suite tested the
 game's *model* and none tested what the player is shown. A pixel is the only
 witness for that, and the only pixel anything looked at was the HUD's.
 
+### What pointing the camera broke, and what caught it
+
+Turning the camera round was correct and it broke two browser suites, which is
+what they are for. Both failures were in the tests, and both are recurrences of
+traps already written down in this file.
+
+**The controls mirrored.** The camera looks along +Z, and with that view
+direction screen-right is world **-X**. `laneToX` mapped increasing lane index
+to increasing X, so lane 0 landed on the right of the screen and lane 2 on the
+left: pressing right moved the runner visibly left. Every headless suite passed
+throughout, because lane *indices* never changed — only where they appear. The
+mapping is now inverted to match the view, `TrackManager`'s private copy of the
+same formula is gone so the two cannot drift apart, and `test:camera` asserts
+lane 0 projects left of the last lane.
+
+**The waits were sized for a frame rate the renderer no longer has.** With the
+world behind the camera it was culled, and the software rasteriser managed
+1.8 fps; drawing it costs about 830 draw calls and the rate fell to 0.8. A lane
+change takes 0.17 s of *simulated* time, which at 0.8 fps is several frames and
+about three seconds of wall clock — against fixed 1.2 s waits in `test:touch`
+and `test:rebind`. Measured on the running game: the lane change happened after
+3,040 ms and 6 frames. The game was right and the wait was short.
+
+Both suites now wait on the simulation — a condition, or a counted number of
+rendered frames where the assertion is that *nothing* happens — so they hold at
+any frame rate.
+
+**And the fix had the same bug twice.** The first version of the `settle`
+helper was `settle(fn, timeout)`, called as `settle(fn, before.lane)`: Playwright
+reads that second argument as the value passed *into* the predicate, so the
+predicate compared against `null` and the timeout became 1 ms. Both assertions
+failed exactly as before and the wait looked innocent. `waitForFunction(fn, arg,
+options)` has now cost this project three separate failures — the original
+`{ timeout: N }` in the argument slot, and this pair — so both helpers carry the
+signature in a comment above them.
+
+The draw call figure this PR quoted for months, around 250, was measured while
+the world was behind the camera and culled. Drawn, it is about 830, and about
+910 with a consist of ambient traffic in view.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

@@ -168,8 +168,18 @@ export const CFG = {
 } as const;
 
 /** World X for a lane index. */
+/**
+ * Lane index to world X.
+ *
+ * Increasing lane index moves the player to the **right of the screen**, which
+ * is what makes the right key move the runner right. The mapping is inverted
+ * against the naive `lane - centre` because the camera looks along +Z: with
+ * that view direction, screen-right is world -X. Getting this backwards
+ * mirrors the controls without mirroring anything the player can name, and
+ * `test:touch` and `test:rebind` are what caught it.
+ */
 export function laneToX(lane: number): number {
-  return (lane - (CFG.laneCount - 1) / 2) * CFG.laneWidth;
+  return ((CFG.laneCount - 1) / 2 - lane) * CFG.laneWidth;
 }
 
 /** Total airborne time for a full jump, used by the fairness solver. */

@@ -97,6 +97,18 @@ function settle(ctrl: CameraController, s: PlayerState, seconds = 1.5, dt = 1 / 
   check('and one 50 m behind is not', !inFrame(behind),
     `projects to ${behind.toArray().map((n) => n.toFixed(2)).join(', ')}`);
 
+  // Handedness. The camera looks along +Z, so screen-right is world -X, and
+  // `laneToX` is inverted to match. Get that wrong and the controls mirror:
+  // the right key moves the runner visibly left, while every headless test
+  // still passes because lane indices are unchanged. That is what happened
+  // when the camera was turned round, and `test:touch` and `test:rebind` in
+  // the browser are what caught it.
+  const leftLane = new THREE.Vector3(laneToX(0), 1, 20).project(cam);
+  const rightLane = new THREE.Vector3(laneToX(CFG.laneCount - 1), 1, 20).project(cam);
+  check('lane 0 is on the left of the screen and the last lane on the right',
+    leftLane.x < -0.01 && rightLane.x > 0.01,
+    `lane 0 at ${leftLane.x.toFixed(3)}, lane ${CFG.laneCount - 1} at ${rightLane.x.toFixed(3)}`);
+
   // The whole visible run of track, not just one point.
   const missing: number[] = [];
   for (let z = 10; z <= CFG.viewDistance; z += 10) {

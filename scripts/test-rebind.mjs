@@ -154,19 +154,43 @@ await page.waitForFunction(
   null,
   { timeout: 60000 },
 );
-await page.waitForTimeout(1500);
+/**
+ * Wait for the simulation, not the clock.
+ *
+ * A lane change takes 0.17 s of simulated time, which is several frames at the
+ * 0.8-1.3 fps a software rasteriser manages with the whole world in view. The
+ * fixed 1.2 s waits these checks used were sized for a frame rate the renderer
+ * no longer has, and started failing the moment the camera was pointed at the
+ * scene. Note the argument slot: `waitForFunction(fn, arg, options)`, and
+ * putting a number in the wrong one fails quietly.
+ */
+const advance = async (frames = 8) => {
+  const from = await page.evaluate(() => window.game?.renderer?.info?.render?.frame ?? 0);
+  await page.waitForFunction(
+    (f) => (window.game?.renderer?.info?.render?.frame ?? 0) > f,
+    from + frames - 1,
+    { timeout: 60000 },
+  ).catch(() => {});
+};
+
+await advance(4);
 
 const lane = () => page.evaluate(() => window.game.player.state.lane);
 
 const startLane = await lane();
 await page.keyboard.press('ArrowLeft');
-await page.waitForTimeout(1200);
+// Asserting that nothing happens: give it a fair run of frames to misbehave.
+await advance(8);
 const afterOld = await lane();
 check('the key that was unbound no longer moves the player',
   afterOld === startLane, `lane ${startLane} -> ${afterOld}`);
 
 await page.keyboard.press('j');
-await page.waitForTimeout(1200);
+await page.waitForFunction(
+  (l) => window.game.player.state.lane < l,
+  afterOld,
+  { timeout: 60000 },
+).catch(() => {});
 const afterNew = await lane();
 check('the newly bound key moves the player',
   afterNew < afterOld, `lane ${afterOld} -> ${afterNew}`);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { buildTrackModule, TrackVariant } from '../assets/TrackFactory';
 import { buildStation } from '../assets/StationFactory';
 import { AmbientTrains } from './AmbientTrains';
-import { CFG } from '../core/Config';
+import { CFG, laneToX } from '../core/Config';
 import { ActiveObstacle, CollisionSystem } from '../core/CollisionSystem';
 import { KeyedPool } from '../core/ObjectPool';
 import { Random } from '../core/Random';
@@ -172,7 +172,7 @@ export class TrackManager {
       const key = `${planned.def.id}|${planned.seed % 8}`;
       const object = this.obstaclePool.acquire(key);
       object.position.set(
-        laneX(planned.lane),
+        laneToX(planned.lane),
         0,
         planned.z - distance,
       );
@@ -186,7 +186,7 @@ export class TrackManager {
         def: planned.def,
         z: planned.z,
         lane: planned.lane,
-        x: laneX(planned.lane),
+        x: laneToX(planned.lane),
         baseY: 0,
         object,
         driftZ: planned.driftZ,
@@ -271,7 +271,7 @@ export class TrackManager {
         // Oscillates within the lane rather than wandering into another one,
         // so the fairness proof for its lane still holds.
         const half = (CFG.laneWidth - o.def.width) / 2;
-        o.x = laneX(o.lane) + Math.sin(this.time * o.driftX) * Math.max(0, half);
+        o.x = laneToX(o.lane) + Math.sin(this.time * o.driftX) * Math.max(0, half);
       }
       if (o.def.id === 'OBS_SwingSign_01') {
         o.object.rotation.z = Math.sin(this.time * 1.8 + o.z) * 0.22;
@@ -307,10 +307,6 @@ export class TrackManager {
   get currentZone(): ZoneDef {
     return zoneAt(Math.max(0, this.moduleFrontier)).zone;
   }
-}
-
-function laneX(lane: number): number {
-  return (lane - (CFG.laneCount - 1) / 2) * CFG.laneWidth;
 }
 
 /**
