@@ -1,4 +1,12 @@
+import * as THREE from 'three';
 import { DecorScatter } from '../src/world/DecorScatter';
+import { buildStation } from '../src/assets/StationFactory';
+import { CollectibleManager } from '../src/collectibles/CollectibleManager';
+import { CollisionSystem } from '../src/core/CollisionSystem';
+import { PowerUpManager } from '../src/powerups/PowerUpManager';
+import { DifficultyManager } from '../src/procedural/DifficultyManager';
+import { ProceduralGenerator } from '../src/procedural/ProceduralGenerator';
+import { TrackManager } from '../src/world/TrackManager';
 import { CFG } from '../src/core/Config';
 import { ZONES, zoneAt } from '../data/difficulty/zones';
 
@@ -123,6 +131,73 @@ check('every zone in the schedule is reachable', ZONES.length >= 7, `${ZONES.len
   }
   for (const line of report) console.log(`  ${line}`);
   check('no zone is an empty corridor', empty.length === 0, empty.join(', '));
+}
+
+// ------------------------------------------------- the running corridor
+//
+// A player reported "something in between while I'm running": the station
+// entrance, a 5.4 m concrete facade placed at x = 0, straddling all three
+// running lines. It carried no collider, so it never registered as an
+// obstacle -- it just looked solid and hid the track ahead.
+//
+// Scenery is scenery: only obstacles belong inside the corridor the player
+// runs down. Every station piece, at every dressing, is measured here.
+
+{
+  const half = (CFG.laneCount * CFG.laneWidth) / 2;
+  const clearance = half + 0.4; // the player's shoulders at the outer lanes
+  const box = new THREE.Box3();
+  const intruders: string[] = [];
+
+  for (let seed = 0; seed < 12; seed++) {
+    const station = buildStation(seed);
+    station.updateMatrixWorld(true);
+    station.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+      box.setFromObject(mesh);
+      // Ground-hugging trim is walked over, not into.
+      if (box.max.y < 0.5) return;
+      if (box.min.x < clearance && box.max.x > -clearance) {
+        const name = mesh.parent?.name || mesh.name || 'unnamed';
+        intruders.push(`${name}@seed${seed} x ${box.min.x.toFixed(1)}..${box.max.x.toFixed(1)}`);
+      }
+    });
+  }
+
+  check('no station piece stands inside the running corridor',
+    intruders.length === 0, [...new Set(intruders)].slice(0, 6).join('; '));
+}
+
+// ------------------------------------------------------- module variety
+//
+// Streaming the whole schedule also proves the world does not collapse onto
+// one module: `TRACK_VARIANTS` is a catalogue, and `TrackManager.variantFor`
+// picks by zone with its own weights, so only a real run shows what is built.
+
+{
+  const difficulty = new DifficultyManager();
+  const generator = new ProceduralGenerator(7, difficulty);
+  const track = new TrackManager(generator, new CollisionSystem(), new CollectibleManager(), new PowerUpManager());
+  track.reset(7);
+  difficulty.reset();
+
+  const dt = 1 / 60;
+  let distance = 0;
+  let elapsed = 0;
+  const built = new Set<string>();
+  const span = ZONES[ZONES.length - 1].fromDistance + 1000;
+  while (distance < span) {
+    elapsed += dt;
+    const speed = Math.min(CFG.speed.max, CFG.speed.base + CFG.speed.acceleration * elapsed);
+    distance += speed * dt;
+    difficulty.update(distance, dt);
+    track.update(dt, distance, speed);
+    track.root.traverse((o) => { if (o.name?.startsWith('TRK_')) built.add(o.name); });
+  }
+
+  check(`the world uses a spread of module variants over ${Math.round(distance)} m`,
+    built.size >= 8, `${built.size} kinds: ${[...built].sort().join(', ')}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

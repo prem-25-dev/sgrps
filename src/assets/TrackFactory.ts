@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CFG, laneToX } from '../core/Config';
 import { hash01, mergeGeometries, place, roundedBox } from './GeometryUtil';
 import { decal, material } from './MaterialLibrary';
+import { createSurface } from './TextureFactory';
 
 /**
  * TRK_* modular track kit.
@@ -26,6 +27,11 @@ export type TrackVariant =
   | 'TRK_Elevated_01'
   | 'TRK_Crossing_01';
 
+/**
+ * Every variant that exists. Note this is the catalogue, not the selection
+ * list: `TrackManager.variantFor` picks by zone with its own weights and never
+ * reads this. Tests enumerate it to build one of everything.
+ */
 export const TRACK_VARIANTS: TrackVariant[] = [
   'TRK_Straight_01', 'TRK_Straight_02', 'TRK_Short_01', 'TRK_Long_01',
   'TRK_Junction_01', 'TRK_Switch_01', 'TRK_Platform_01', 'TRK_PlatformEdge_01',
@@ -326,23 +332,105 @@ function addCrossing(group: THREE.Group, ctx: ModuleContext): void {
   void ctx;
 }
 
+/**
+ * The tunnel lining, shared across every tunnel module so they still batch.
+ *
+ * It carries a little emissive of its own. The world has three lights and all
+ * of them are outside: a shell that blocks the sun and takes only hemisphere
+ * ambient renders as a black void, and a player running into one is running
+ * blind. A dim self-lit lining means the tunnel always reads as a tunnel, even
+ * beyond the reach of the service lamps.
+ */
+let tunnelLining: THREE.MeshStandardMaterial | null = null;
+function liningMaterial(): THREE.MeshStandardMaterial {
+  if (!tunnelLining) {
+    tunnelLining = material('MAT_ConcreteRib').clone();
+    tunnelLining.side = THREE.BackSide;
+    tunnelLining.emissive = new THREE.Color(0x2c3138);
+    tunnelLining.emissiveIntensity = 1;
+  }
+  return tunnelLining;
+}
+
+/** The soft additive puddle a service lamp throws on the tunnel floor. */
+let lampPool: THREE.Material | null = null;
+function poolMaterial(): THREE.Material {
+  if (!lampPool) {
+    lampPool = new THREE.MeshBasicMaterial({
+      color: 0xffc27a,
+      map: radialFalloff() ?? undefined,
+      transparent: true,
+      opacity: 0.32,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+  }
+  return lampPool;
+}
+
+/**
+ * A round white-to-black gradient, so the pool has no visible edge. Built
+ * through `createSurface`, which returns null under the headless harness where
+ * there is no canvas -- the tunnel then just has no floor pool, rather than
+ * throwing on `document` in a test run.
+ */
+let falloff: THREE.Texture | null | undefined;
+function radialFalloff(): THREE.Texture | null {
+  if (falloff === undefined) {
+    const size = 64;
+    const surface = createSurface(size);
+    if (!surface) {
+      falloff = null;
+    } else {
+      const c = surface.ctx;
+      const grad = c.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.45, '#8a8a8a');
+      grad.addColorStop(1, '#000000');
+      c.fillStyle = grad;
+      c.fillRect(0, 0, size, size);
+      falloff = new THREE.CanvasTexture(surface.canvas as HTMLCanvasElement);
+      falloff.colorSpace = THREE.SRGBColorSpace;
+      falloff.needsUpdate = true;
+    }
+  }
+  return falloff;
+}
+
 function addTunnelShell(group: THREE.Group, ctx: ModuleContext): void {
   const radius = TRACK_HALF_WIDTH + 2.6;
   const shell = new THREE.Mesh(
     new THREE.CylinderGeometry(radius, radius, ctx.length, 18, 1, true, 0, Math.PI),
-    material('MAT_ConcreteRib'),
+    liningMaterial(),
   );
-  shell.rotation.set(Math.PI / 2, 0, 0);
+  // The half-cylinder has to be spun about its own axis to become a vault.
+  // Left at zero it is the *side* half: a wall down one side of the track with
+  // open sky down the other, which is what shipped -- a tunnel you could see
+  // the city through. The middle term is the spin about the tunnel axis (it is
+  // applied before the tilt), and PI/2 lifts the arch overhead, springing from
+  // ground level at both haunches.
+  shell.rotation.set(Math.PI / 2, Math.PI / 2, 0);
   shell.position.y = -0.3;
-  shell.material.side = THREE.BackSide;
   group.add(shell);
 
-  // Tunnel service lighting.
+  // Tunnel service lighting. An emissive material lights nothing, so the lamps
+  // were fittings in a dark room. The fix is deliberately *not* a point light
+  // per lamp: the scene keeps a fixed three lights, and three.js recompiles
+  // every shader when that count changes, so a light travelling in and out
+  // with a streamed module would hitch on entry to each tunnel. Instead the
+  // lamps throw an additive pool onto the floor beneath them -- no light, no
+  // recompile, and the tunnel reads as lit.
   const lampCount = Math.floor(ctx.length / 6);
   for (let i = 0; i < lampCount; i++) {
+    const z = -ctx.length / 2 + (i + 0.5) * 6;
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.12), material('MAT_NeonAmber'));
-    lamp.position.set(-radius * 0.72, 3.6, -ctx.length / 2 + (i + 0.5) * 6);
+    lamp.position.set(-radius * 0.72, 3.6, z);
     group.add(lamp);
+
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(radius * 1.1, 5.4), poolMaterial());
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(-radius * 0.36, 0.06, z);
+    group.add(pool);
   }
 }
 

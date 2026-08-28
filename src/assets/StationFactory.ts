@@ -319,11 +319,17 @@ export function buildStation(seed: number): THREE.Group {
     const wall = buildStationPiece('STA_Wall');
     wall.position.set(x + side * 3.3, deckY, 0);
     station.add(wall);
-  }
 
-  const entrance = buildStationPiece('STA_Entrance');
-  entrance.position.set(0, deckY, 13.5);
-  station.add(entrance);
+    // The entrance is a portal *in* the back wall, facing across the platform.
+    // It used to sit at x = 0 — a 5.4 m concrete facade planted across all
+    // three running lines, with no collider, so the player ran through a
+    // building that looked solid and hid the track ahead. Stations are
+    // furniture beside the track; nothing here belongs inside the corridor.
+    const entrance = buildStationPiece('STA_Entrance');
+    entrance.position.set(x + side * 3.3, deckY, 13.5);
+    entrance.rotation.y = -side * Math.PI / 2;
+    station.add(entrance);
+  }
 
   return station;
 }
