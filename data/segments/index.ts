@@ -179,11 +179,19 @@ export const SEGMENT_TEMPLATES: SegmentTemplate[] = [
   // point, and the solver proves the break is makeable at the speed the player
   // will actually be doing — with the train's closing speed widening the
   // hazard, which is what makes the reaction guarantee bite here.
-  t('SEG_TrainMoving_01', 'train', 0.45, 1, 5, [
+  //
+  // Gated low on purpose. At 0.45 and 0.55 the first service train landed
+  // between 2.0 and 2.8 km across every seed measured, and runs end long
+  // before that -- the one hazard the game is named around was something
+  // almost nobody ever met. The fairness solver, not this number, is what
+  // keeps it survivable: it widens the hazard by its closing drift and
+  // refuses any segment with no route through, so lowering the gate makes
+  // the generator reject more attempts rather than ship an unfair one.
+  t('SEG_TrainMoving_01', 'train', 0.08, 1, 5, [
     { type: 'train', id: 'OBS_TrainMoving_01', lane: 1, z: 2, length: 23 },
     { type: 'coinPattern', id: 'PAT_Straight', lane: 1, z: 1 },
   ], { entryLanes: [1] }),
-  t('SEG_TrainMoving_02', 'train', 0.55, 1, 4, [
+  t('SEG_TrainMoving_02', 'train', 0.13, 1, 4, [
     { type: 'train', id: 'OBS_TrainMoving_01', lane: 0, z: 2, length: 23 },
     { type: 'coinPattern', id: 'PAT_Straight', lane: 0, z: 1 },
   ], { entryLanes: [0] }),

@@ -122,6 +122,35 @@ interface Model {
   fallBase: number;
 }
 
+/**
+ * How far the player's feet must clear an obstacle before the solver calls it
+ * jumped.
+ *
+ * It used to be zero: feet at or above the top counted as over it. The jump
+ * apex is 2.70 m, and `OBS_SignalBox_01` is 2.6 m and declares `laneChange` as
+ * its only action -- so the solver approved routes that jumped it by ten
+ * centimetres, at a single instant of the arc, and the differential sweep
+ * found no take-off at all that flies them.
+ *
+ * 0.15 m is chosen against what the physics actually achieves rather than to
+ * make a number pass. It rules out only the sub-15 cm knife edges:
+ *
+ *   OBS_TallBarrier_01  2.70  needs 2.85  - out of reach, dodge it
+ *   OBS_SignalBox_01    2.60  needs 2.75  - out of reach, dodge it
+ *   OBS_FencePanel_01   2.40  needs 2.55  - still jumpable, and test:vocabulary
+ *                                           already measures it clearing in the
+ *                                           real physics with 30 cm to spare
+ *
+ * Everything the vocabulary means to be jumped is 1.35 m or shorter, so this
+ * cannot drift into making a jumpable obstacle unjumpable. A larger margin
+ * would: at 0.25 m the solver starts picking take-offs the grid cannot state
+ * precisely, and the offset-route budget goes from 80 to 91.
+ *
+ * Landing on something is a different question, judged below, so a container
+ * roof at 2.55 is still a surface the player can reach.
+ */
+const JUMP_CLEARANCE = 0.15;
+
 function buildModel(speed: number, length: number, step: number): Model {
   const airTime = (2 * CFG.jump.velocity) / -CFG.jump.gravity;
   const airSteps = Math.max(1, Math.ceil((airTime * speed) / step));
@@ -312,7 +341,7 @@ export class SegmentValidator {
         if (o.zEnd <= z0 || o.zStart >= z1) continue;
         // A ramp only blocks what is below its slope at the trailing edge.
         const top = o.slope ? surfaceOf(o, z1) : o.maxY;
-        if (top <= min || o.minY >= max) continue;
+        if (top <= min - JUMP_CLEARANCE || o.minY >= max) continue;
         if ((o.standable || o.slope) && min >= top - 0.14) continue;
         return o;
       }
