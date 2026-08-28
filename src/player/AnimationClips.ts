@@ -153,9 +153,19 @@ export function locomotion(phase: number, gait: GaitParams, out: Pose): Pose {
     out.set(`toe_${name}`, Math.max(0, -0.4 * bump(sp, 0.93, 0.16)));
 
     // Arms counter-swing against the legs.
+    //
+    // The abduction term oscillates rather than sitting at a constant angle.
+    // The player watches this character from directly behind, and a pure
+    // fore-aft swing is foreshortened to nothing from there: measured, the
+    // hands travelled 56 cm along Z and 13 cm across X, so the run looked
+    // static even though the arms were moving the whole time. Swinging the
+    // elbows out as the arm comes forward puts part of that motion in the one
+    // axis the gameplay camera can actually see, and it is what a real runner
+    // does anyway.
     const arm = gait.hipMid * 0.3 - gait.armSwing * Math.sin(sp * TAU);
     const elbow = gait.elbowBend + gait.elbowPump * Math.max(0, Math.sin(sp * TAU + Math.PI));
-    out.set(`upperArm_${name}`, arm, side * gait.chestTwist * 0.3, side * (0.1 + gait.armSwing * 0.06));
+    const flare = 0.1 + gait.armSwing * 0.06 + gait.armSwing * 0.30 * Math.max(0, Math.sin(sp * TAU));
+    out.set(`upperArm_${name}`, arm, side * gait.chestTwist * 0.3, side * flare);
     out.set(`forearm_${name}`, elbow, 0, side * 0.12);
     out.set(`hand_${name}`, 0.1, 0, side * 0.16);
     out.set(`shoulder_${name}`, gait.shoulderRoll * Math.sin(sp * TAU), 0, side * gait.shoulderRoll);
@@ -170,8 +180,13 @@ export function locomotion(phase: number, gait: GaitParams, out: Pose): Pose {
   out.set('head', gait.lean * 0.65, gait.chestTwist * 0.35 * Math.sin(p * TAU), 0);
 
   // Vertical bob: two rises per stride, lowest at each mid-stance.
+  //
+  // The lateral term was 0.02 * pelvisTwist, which at a full run is two
+  // millimetres -- a sway nobody could see. A runner's pelvis crosses several
+  // centimetres onto each stance leg, and from behind that is one of the few
+  // parts of the gait that reads at all.
   const bob = -gait.crouch - gait.bob * 0.5 + gait.bob * 0.5 * Math.cos(p * 2 * TAU);
-  out.offset.set(gait.pelvisTwist * 0.02 * Math.sin(p * TAU), bob, 0);
+  out.offset.set(gait.pelvisTwist * 0.16 * Math.sin(p * TAU), bob, 0);
   return out;
 }
 
@@ -244,23 +259,30 @@ export function airborne(t: number, out: Pose): Pose {
   const rise = smoothstep(Math.min(1, t * 2.2));
   const fall = smoothstep(Math.max(0, (t - 0.55) / 0.45));
 
-  // Lead leg tucks on the way up, then reaches out for the landing.
-  out.set('thigh_L', 0.85 * rise - 0.55 * fall + 0.15);
-  out.set('calf_L', -1.25 * rise + 0.95 * fall);
+  // Lead leg tucks hard on the way up, then reaches out for the landing.
+  out.set('thigh_L', 1.15 * rise - 0.85 * fall + 0.15, 0, 0.06 * rise);
+  out.set('calf_L', -1.65 * rise + 1.35 * fall);
   out.set('foot_L', 0.2 * rise + 0.3 * fall);
   // Trail leg extends behind, then swings under the body.
-  out.set('thigh_R', -0.45 * rise + 0.75 * fall);
-  out.set('calf_R', -0.85 * rise - 0.15 * fall);
+  out.set('thigh_R', -0.7 * rise + 1.05 * fall, 0, -0.06 * rise);
+  out.set('calf_R', -1.15 * rise - 0.15 * fall);
   out.set('foot_R', -0.25 * rise + 0.35 * fall);
 
-  out.set('upperArm_L', 0.85 - 0.55 * fall, 0, 0.24);
-  out.set('upperArm_R', -0.45 + 0.35 * fall, 0, -0.3);
+  // Arms: one drives up across the body at take-off, the other trails, and
+  // both open outward for the landing. The lateral terms carry the read here
+  // for the same reason as the run cycle -- from directly behind, an arm
+  // swinging along Z barely moves on screen, and a jump that reads as a held
+  // pose is the complaint this clip exists to answer.
+  out.set('upperArm_L', 1.15 - 0.85 * fall, 0, 0.24 + 0.34 * rise - 0.5 * fall);
+  out.set('upperArm_R', -0.7 + 0.6 * fall, 0, -0.3 - 0.28 * rise + 0.44 * fall);
   out.set('forearm_L', 0.55 + 0.35 * fall, 0, 0.12);
   out.set('forearm_R', 0.75 + 0.25 * fall, 0, -0.12);
 
-  out.set('spine', -0.05 - 0.12 * fall, 0.05 * rise, 0);
-  out.set('chest', -0.04 - 0.1 * fall, -0.08 * rise, 0);
-  out.set('head', 0.12 + 0.1 * fall);
+  // The torso folds over the tuck and opens again to land, so the whole body
+  // travels through the arc rather than the legs alone.
+  out.set('spine', -0.05 - 0.12 * fall + 0.16 * rise, 0.05 * rise, 0);
+  out.set('chest', -0.04 - 0.1 * fall + 0.12 * rise, -0.08 * rise, 0);
+  out.set('head', 0.12 + 0.1 * fall - 0.14 * rise);
   return out;
 }
 

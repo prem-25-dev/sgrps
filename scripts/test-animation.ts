@@ -253,6 +253,65 @@ console.log('\nGait and cadence:');
 }
 
 // ---------------------------------------------------------------------------
+console.log('\nWhat the gameplay camera can actually see:');
+{
+  // The player watches this character from directly behind. Motion along Z is
+  // foreshortened to almost nothing from there, so a clip can be full of
+  // movement and still read as a held pose -- which is exactly what was
+  // reported. Measured before the fix: the hands swept 56 cm along Z and 13 cm
+  // across X while running, and 1.6 cm across X through a whole jump arc.
+  //
+  // These floors are on the axes that survive the rear view. They are what
+  // stops the run and the jump quietly flattening again.
+  const hero = createHero(DEFAULT_IDENTITY);
+  const animator = new PlayerAnimator(hero);
+  const v = new THREE.Vector3();
+
+  const travel = (names: string[], frames: number, step: (i: number) => void) => {
+    const min = new Map<string, THREE.Vector3>();
+    const max = new Map<string, THREE.Vector3>();
+    for (let i = 0; i < frames; i++) {
+      step(i);
+      hero.object.updateMatrixWorld(true);
+      for (const n of names) {
+        hero.rig.byName.get(n)!.getWorldPosition(v);
+        if (!min.has(n)) { min.set(n, v.clone()); max.set(n, v.clone()); }
+        min.get(n)!.min(v); max.get(n)!.max(v);
+      }
+    }
+    const out = new Map<string, THREE.Vector3>();
+    for (const n of names) out.set(n, max.get(n)!.clone().sub(min.get(n)!));
+    return out;
+  };
+
+  animator.reset();
+  for (let i = 0; i < 60; i++) animator.update(1 / 60, ctx());
+  const run = travel(['hand_L', 'hips'], 120, () => animator.update(1 / 60, ctx()));
+  const handX = run.get('hand_L')!.x;
+  const hipX = run.get('hips')!.x;
+  check('the hands swing across the body, not only along it', handX > 0.18,
+    `hand travelled ${(handX * 100).toFixed(0)} cm across at 12 m/s`);
+  check('the pelvis sways onto each stance leg', hipX > 0.03,
+    `hips travelled ${(hipX * 100).toFixed(0)} cm across`);
+  console.log(`  running: hand ${(handX * 100).toFixed(0)} cm across, ` +
+    `${(run.get('hand_L')!.z * 100).toFixed(0)} cm along; hips ${(hipX * 100).toFixed(0)} cm across`);
+
+  animator.play('airborne', true);
+  for (let i = 0; i < 12; i++) animator.update(1 / 60, ctx({ grounded: false, airProgress: 0 }));
+  const air = travel(['hand_L', 'foot_L'], 60, (i) =>
+    animator.update(1 / 60, ctx({ grounded: false, airProgress: i / 59 })));
+  const airHandX = air.get('hand_L')!.x;
+  const airHandY = air.get('hand_L')!.y;
+  const airFootY = air.get('foot_L')!.y;
+  check('the jump is not a held pose: the arms travel across', airHandX > 0.14,
+    `hand travelled ${(airHandX * 100).toFixed(0)} cm across the arc`);
+  check('and the body works through the arc', airHandY > 0.25 && airFootY > 0.25,
+    `hand ${(airHandY * 100).toFixed(0)} cm, foot ${(airFootY * 100).toFixed(0)} cm vertically`);
+  console.log(`  jumping: hand ${(airHandX * 100).toFixed(0)} cm across, ` +
+    `${(airHandY * 100).toFixed(0)} cm up; foot ${(airFootY * 100).toFixed(0)} cm up`);
+}
+
+// ---------------------------------------------------------------------------
 console.log('\nState machine:');
 {
   const hero = createHero(DEFAULT_IDENTITY);

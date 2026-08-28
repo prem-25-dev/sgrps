@@ -20,6 +20,18 @@ export interface BoneDef {
   influence?: number;
 }
 
+/**
+ * Where the arm and leg chains hang, out from the centre line.
+ *
+ * Shared with `HeroFactory`, which sweeps the limb meshes and the clothing
+ * over them at the same offsets. They were separate literals in both files:
+ * move the mesh outboard for a better silhouette and the bones stay put, so
+ * the skinning segments no longer run down the middle of the limb they drive
+ * and the arm deforms around a line beside it.
+ */
+export const ARM_X = 0.193;
+export const LEG_X = 0.106;
+
 export const BONES: BoneDef[] = [
   { name: 'root', parent: null, rest: [0, 0, 0], influence: 0 },
   { name: 'hips', parent: 'root', rest: [0, 0.94, 0], tip: 'spine' },
@@ -30,26 +42,26 @@ export const BONES: BoneDef[] = [
   { name: 'headTip', parent: 'head', rest: [0, 1.79, 0], influence: 0 },
 
   { name: 'shoulder_L', parent: 'chest', rest: [0.045, 1.46, 0], tip: 'upperArm_L' },
-  { name: 'upperArm_L', parent: 'shoulder_L', rest: [0.185, 1.44, 0], tip: 'forearm_L' },
-  { name: 'forearm_L', parent: 'upperArm_L', rest: [0.185, 1.165, 0], tip: 'hand_L' },
-  { name: 'hand_L', parent: 'forearm_L', rest: [0.185, 0.92, 0], tip: 'fingers_L' },
-  { name: 'fingers_L', parent: 'hand_L', rest: [0.185, 0.845, 0] },
+  { name: 'upperArm_L', parent: 'shoulder_L', rest: [ARM_X, 1.44, 0], tip: 'forearm_L' },
+  { name: 'forearm_L', parent: 'upperArm_L', rest: [ARM_X, 1.165, 0], tip: 'hand_L' },
+  { name: 'hand_L', parent: 'forearm_L', rest: [ARM_X, 0.92, 0], tip: 'fingers_L' },
+  { name: 'fingers_L', parent: 'hand_L', rest: [ARM_X, 0.845, 0] },
 
   { name: 'shoulder_R', parent: 'chest', rest: [-0.045, 1.46, 0], tip: 'upperArm_R' },
-  { name: 'upperArm_R', parent: 'shoulder_R', rest: [-0.185, 1.44, 0], tip: 'forearm_R' },
-  { name: 'forearm_R', parent: 'upperArm_R', rest: [-0.185, 1.165, 0], tip: 'hand_R' },
-  { name: 'hand_R', parent: 'forearm_R', rest: [-0.185, 0.92, 0], tip: 'fingers_R' },
-  { name: 'fingers_R', parent: 'hand_R', rest: [-0.185, 0.845, 0] },
+  { name: 'upperArm_R', parent: 'shoulder_R', rest: [-ARM_X, 1.44, 0], tip: 'forearm_R' },
+  { name: 'forearm_R', parent: 'upperArm_R', rest: [-ARM_X, 1.165, 0], tip: 'hand_R' },
+  { name: 'hand_R', parent: 'forearm_R', rest: [-ARM_X, 0.92, 0], tip: 'fingers_R' },
+  { name: 'fingers_R', parent: 'hand_R', rest: [-ARM_X, 0.845, 0] },
 
-  { name: 'thigh_L', parent: 'hips', rest: [0.095, 0.92, 0], tip: 'calf_L' },
-  { name: 'calf_L', parent: 'thigh_L', rest: [0.095, 0.505, 0], tip: 'foot_L' },
-  { name: 'foot_L', parent: 'calf_L', rest: [0.095, 0.085, 0], tip: 'toe_L' },
-  { name: 'toe_L', parent: 'foot_L', rest: [0.095, 0.03, -0.15] },
+  { name: 'thigh_L', parent: 'hips', rest: [LEG_X, 0.92, 0], tip: 'calf_L' },
+  { name: 'calf_L', parent: 'thigh_L', rest: [LEG_X, 0.505, 0], tip: 'foot_L' },
+  { name: 'foot_L', parent: 'calf_L', rest: [LEG_X, 0.085, 0], tip: 'toe_L' },
+  { name: 'toe_L', parent: 'foot_L', rest: [LEG_X, 0.03, -0.15] },
 
-  { name: 'thigh_R', parent: 'hips', rest: [-0.095, 0.92, 0], tip: 'calf_R' },
-  { name: 'calf_R', parent: 'thigh_R', rest: [-0.095, 0.505, 0], tip: 'foot_R' },
-  { name: 'foot_R', parent: 'calf_R', rest: [-0.095, 0.085, 0], tip: 'toe_R' },
-  { name: 'toe_R', parent: 'foot_R', rest: [-0.095, 0.03, -0.15] },
+  { name: 'thigh_R', parent: 'hips', rest: [-LEG_X, 0.92, 0], tip: 'calf_R' },
+  { name: 'calf_R', parent: 'thigh_R', rest: [-LEG_X, 0.505, 0], tip: 'foot_R' },
+  { name: 'foot_R', parent: 'calf_R', rest: [-LEG_X, 0.085, 0], tip: 'toe_R' },
+  { name: 'toe_R', parent: 'foot_R', rest: [-LEG_X, 0.03, -0.15] },
 ];
 
 export const REFERENCE_HEIGHT = 1.78;

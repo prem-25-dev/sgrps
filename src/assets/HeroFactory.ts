@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, place, Ring, ringXZ, sweep } from './GeometryUtil';
 import { HeroIdentity } from './HeroIdentity';
-import { buildRig, Rig, skinGeometry, REFERENCE_HEIGHT } from './HeroRig';
+import { ARM_X, LEG_X, REFERENCE_HEIGHT, Rig, buildRig, skinGeometry } from './HeroRig';
 import { noiseTexture } from './TextureFactory';
 
 /**
@@ -67,9 +67,9 @@ function torsoSections(id: HeroIdentity): Section[] {
     { y: 1.21, rx: shoulder * 0.79 * g, rz: 0.118 * g, z: -0.01 },
     { y: 1.28, rx: shoulder * 0.87 * g, rz: 0.12 * g, z: -0.011 },
     { y: 1.35, rx: shoulder * 0.93 * g, rz: 0.116 * g, z: -0.008 },
-    { y: 1.42, rx: shoulder * 1.02 * g, rz: 0.107 * g, z: -0.004 },
-    { y: 1.462, rx: shoulder * 0.94 * g, rz: 0.096 * g, z: 0 },
-    { y: 1.492, rx: shoulder * 0.60 * g, rz: 0.083 * g, z: 0.002 },
+    { y: 1.42, rx: shoulder * 1.0 * g, rz: 0.107 * g, z: -0.004 },
+    { y: 1.462, rx: shoulder * 0.86 * g, rz: 0.096 * g, z: 0 },
+    { y: 1.492, rx: shoulder * 0.55 * g, rz: 0.083 * g, z: 0.002 },
     { y: 1.515, rx: 0.062, rz: 0.058, z: 0.004 },
   ];
 }
@@ -85,15 +85,20 @@ function neckSections(): Section[] {
 
 function armSections(id: HeroIdentity, side: number): Section[] {
   const g = 0.92 + id.build * 0.22;
-  const x = 0.185 * side;
+  const x = ARM_X * side;
   return [
     // Domed top: the sweep closes over the shoulder and tucks under the
     // trapezius rather than ending in a flat disc.
-    { y: 1.496, rx: 0.014 * g, rz: 0.014 * g, z: 0 },
-    { y: 1.482, rx: 0.030 * g, rz: 0.030 * g, z: 0 },
-    { y: 1.466, rx: 0.043 * g, rz: 0.043 * g, z: 0 },
-    { y: 1.44, rx: 0.056 * g, rz: 0.056 * g, z: 0 },
-    { y: 1.41, rx: 0.06 * g, rz: 0.06 * g, z: 0 },
+    //
+    // It used to reach y=1.496, above the torso's own shoulder ring at 1.462,
+    // so the deltoid stood on the shoulder as a separate ball and the sleeve
+    // over it read as a puffed sleeve. A real deltoid slopes down and out from
+    // under the trapezius, so the dome now ends below that ring.
+    { y: 1.462, rx: 0.017 * g, rz: 0.017 * g, z: 0 },
+    { y: 1.452, rx: 0.032 * g, rz: 0.032 * g, z: 0 },
+    { y: 1.438, rx: 0.045 * g, rz: 0.045 * g, z: 0 },
+    { y: 1.418, rx: 0.055 * g, rz: 0.055 * g, z: 0 },
+    { y: 1.39, rx: 0.058 * g, rz: 0.058 * g, z: 0 },
     { y: 1.32, rx: 0.053 * g, rz: 0.053 * g, z: 0 },
     { y: 1.23, rx: 0.046 * g, rz: 0.047 * g, z: 0 },
     { y: 1.165, rx: 0.043 * g, rz: 0.044 * g, z: 0 },
@@ -107,10 +112,10 @@ function armSections(id: HeroIdentity, side: number): Section[] {
 function legSections(id: HeroIdentity): Section[] {
   const g = 0.94 + id.build * 0.2;
   return [
-    { y: 0.955, rx: 0.09 * g, rz: 0.1 * g, z: 0.004 },
-    { y: 0.88, rx: 0.085 * g, rz: 0.095 * g, z: 0.004 },
-    { y: 0.77, rx: 0.077 * g, rz: 0.087 * g, z: 0.002 },
-    { y: 0.65, rx: 0.068 * g, rz: 0.076 * g, z: 0 },
+    { y: 0.955, rx: 0.086 * g, rz: 0.1 * g, z: 0.004 },
+    { y: 0.88, rx: 0.079 * g, rz: 0.095 * g, z: 0.004 },
+    { y: 0.77, rx: 0.071 * g, rz: 0.087 * g, z: 0.002 },
+    { y: 0.65, rx: 0.064 * g, rz: 0.076 * g, z: 0 },
     { y: 0.555, rx: 0.06 * g, rz: 0.066 * g, z: 0 },
     { y: 0.505, rx: 0.057 * g, rz: 0.062 * g, z: 0.002 },
     { y: 0.45, rx: 0.061 * g, rz: 0.07 * g, z: 0.008 },
@@ -208,7 +213,7 @@ function footRings(side: number, scale: number, offset = 0, lift = 0, density = 
   for (let i = 0; i < rows; i++) {
     const s = rows === defs.length ? sections[i] : sampleSections(sections, i / (rows - 1));
     rings.push({
-      c: new THREE.Vector3(0.095 * side * scale, ((s.z ?? 0) + lift) * scale, s.y * scale),
+      c: new THREE.Vector3(LEG_X * side * scale, ((s.z ?? 0) + lift) * scale, s.y * scale),
       u: new THREE.Vector3((s.rx + offset) * scale, 0, 0),
       v: new THREE.Vector3(0, (s.rz + offset) * scale, 0),
       shape: LIMB_PROFILE,
@@ -488,14 +493,14 @@ function buildLodMeshes(
   );
   for (const side of [1, -1]) {
     bodyParts.push(
-      sweep(sectionsToRings(armSections(id, side), 0.185 * side, LIMB_PROFILE, scale, 0, q.ringDensity), {
+      sweep(sectionsToRings(armSections(id, side), ARM_X * side, LIMB_PROFILE, scale, 0, q.ringDensity), {
         radialSegments: q.limbSegments,
         capStart: true,
         capEnd: !q.fingers,
       }),
     );
     bodyParts.push(
-      sweep(sectionsToRings(legSections(id), 0.095 * side, LIMB_PROFILE, scale, 0, q.ringDensity), {
+      sweep(sectionsToRings(legSections(id), LEG_X * side, LIMB_PROFILE, scale, 0, q.ringDensity), {
         radialSegments: q.limbSegments,
         capStart: true,
       }),
@@ -537,7 +542,7 @@ function buildLodMeshes(
     // dome and puts the only visible seam at the hem, where a sleeve's seam
     // belongs.
     const sleeve = clipRings(
-      sectionsToRings(armSections(id, side), 0.185 * side, LIMB_PROFILE, scale, 0.016, q.ringDensity),
+      sectionsToRings(armSections(id, side), ARM_X * side, LIMB_PROFILE, scale, 0.016, q.ringDensity),
       sleeveEnd * scale,
     );
     if (sleeve.length >= 2) {
@@ -575,7 +580,7 @@ function buildLodMeshes(
     // Joggers cinch over the last fifth of the leg; jeans keep an even drape.
     const drape = (t: number) => (joggers && t > 0.86 ? 0.019 - (t - 0.86) * 0.09 : 0.019);
     const leg = clipRings(
-      sectionsToRings(legSections(id), 0.095 * side, LIMB_PROFILE, scale, drape, q.ringDensity),
+      sectionsToRings(legSections(id), LEG_X * side, LIMB_PROFILE, scale, drape, q.ringDensity),
       ankle * scale,
     );
     pantsParts.push(sweep(leg, { radialSegments: q.limbSegments, capEnd: true }));
@@ -635,7 +640,7 @@ function soleRings(side: number, scale: number, density = 1): Ring[] {
   for (let i = 0; i < rows; i++) {
     const s = rows === defs.length ? sections[i] : sampleSections(sections, i / (rows - 1));
     rings.push({
-      c: new THREE.Vector3(0.095 * side * scale, (s.z ?? 0) * scale, s.y * scale),
+      c: new THREE.Vector3(LEG_X * side * scale, (s.z ?? 0) * scale, s.y * scale),
       u: new THREE.Vector3(s.rx * scale, 0, 0),
       v: new THREE.Vector3(0, s.rz * scale, 0),
       shape: profile,
@@ -647,7 +652,7 @@ function soleRings(side: number, scale: number, density = 1): Ring[] {
 /** Palm plus four fingers and a thumb. */
 function buildHand(side: number, scale: number): THREE.BufferGeometry[] {
   const out: THREE.BufferGeometry[] = [];
-  const x = 0.185 * side;
+  const x = ARM_X * side;
   const palm = [
     { y: 0.925, rx: 0.031, rz: 0.033 },
     { y: 0.9, rx: 0.036, rz: 0.024 },
@@ -891,12 +896,16 @@ function buildAccessories(id: HeroIdentity, rig: Rig, mats: HeroMaterials, scale
     strap.rotation.z = Math.PI / 2;
     strap.position.set(0, -0.03 * scale, 0);
     rig.byName.get('hand_L')!.add(strap);
+    // Seated on the outer face of the wrist, disc pointing away from the arm.
+    // It used to be offset along the arm axis with the strap's own rotation,
+    // which stood it off the end of the strap: from any angle it read as a
+    // bright dot floating beside the wrist rather than a watch.
     const face = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.017 * scale, 0.017 * scale, 0.008 * scale, 12),
+      new THREE.CylinderGeometry(0.016 * scale, 0.016 * scale, 0.007 * scale, 12),
       mats.accent,
     );
-    face.rotation.z = Math.PI / 2;
-    face.position.set(0.03 * scale, -0.03 * scale, 0);
+    face.rotation.x = Math.PI / 2;
+    face.position.set(0, -0.03 * scale, 0.03 * scale);
     rig.byName.get('hand_L')!.add(face);
   }
   if (id.outfit.band) {
