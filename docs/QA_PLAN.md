@@ -1125,6 +1125,55 @@ The draw call figure this PR quoted for months, around 250, was measured while
 the world was behind the camera and culled. Drawn, it is about 830, and about
 910 with a consist of ambient traffic in view.
 
+## The train that never moved
+
+`OBS_TrainMoving_01` was stationary for the whole build. Drift was applied as
+`dynamic ? ... : 0` where `dynamic` means `category === 'dynamic'`, and a
+train's category is `'train'` — so the one archetype named for its motion was
+the one archetype guaranteed not to have any. That is the third thing in this
+project found to be named for a behaviour it did not have, after the near miss
+that never fired and the reaction guarantee that was computed and never
+enforced.
+
+Fixing it needed two changes, and the second is the interesting one.
+
+**The train now runs.** It closes at `speedFactor` (0.55) of the player's speed
+on top of the approach the track already provides, so 1.55x overall. Measured
+on the real streamer: 110 m of approach eaten in 2.55 s at 48.1 m/s against a
+player doing 31.
+
+**And it now runs at the player.** The first version was fast and completely
+harmless, because the template put it in lane 2 with lanes 0 and 1 clear. The
+fairness solver was perfectly happy at *any* closing speed — a hazard in one
+lane of three forces no decision, so widening its swept Z span changes nothing.
+Sweeping the speed from 0.55 to 1.8 produced byte-identical rejection counts,
+which was the clue. The template now enters in the train's own lane with the
+coin run leading down it, so the player is running at the train rather than
+watching it pass somewhere they were never going. Rejections went from 7 with
+0 repairs to 3 with 3 repairs: the solver is now doing work here.
+
+### Provably fair is not the same as humanly possible
+
+The solver accepts closing speeds far beyond what a person can play, because it
+reasons about a reaction *distance* while a player has a reaction *time*. With
+the hazard closing at (1 + f) times the player's speed, the real window is the
+guarantee divided by that factor:
+
+| closing speed | window at low difficulty | at maximum |
+|---|---|---|
+| 1.00x (parked) | 950 ms | 520 ms |
+| **1.55x (chosen)** | **613 ms** | **335 ms** |
+| 2.10x | 452 ms | 248 ms |
+
+Human visual reaction is around 250 ms before any input, and a lane change
+takes a further 170 ms. At 2.10x the solver still certifies every segment as
+survivable and a person cannot play it. 1.55x is the fastest setting that
+leaves a real window at maximum difficulty, and that is why it is the number,
+not because the generator refused anything higher.
+
+`CFG.oncomingTrain.speedFactor` is the knob, and this table is the reason to be
+careful with it.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

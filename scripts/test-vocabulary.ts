@@ -16,6 +16,12 @@
 import { CFG } from '../src/core/Config';
 import { OBSTACLE_DEFS } from '../data/obstacles';
 import { ObstacleDef } from '../src/core/Types';
+import { CollectibleManager } from '../src/collectibles/CollectibleManager';
+import { CollisionSystem } from '../src/core/CollisionSystem';
+import { PowerUpManager } from '../src/powerups/PowerUpManager';
+import { TrackManager } from '../src/world/TrackManager';
+import { DifficultyManager } from '../src/procedural/DifficultyManager';
+import { ProceduralGenerator } from '../src/procedural/ProceduralGenerator';
 import { makeHarness } from './harness';
 
 let pass = 0;
@@ -140,6 +146,113 @@ function clearableByJump(id: string): boolean {
     jumpable.join(',') === expected.join(','),
     `measured [${jumpable.join(', ')}], expected [${expected.join(', ')}]`);
   console.log(`  passable by a held jump: ${jumpable.join(', ') || 'none'}`);
+}
+
+// ------------------------------------------------------- the service train
+//
+// `OBS_TrainMoving_01` spent the whole build stationary. Drift was applied
+// only to `category === 'dynamic'`, and a train's category is `'train'`, so
+// the one archetype named for its motion was the one archetype that never
+// moved. It is the third thing in this project found to be named for a
+// behaviour it did not have, after the near miss that never fired and the
+// reaction guarantee that was computed and never enforced.
+
+{
+  const difficulty = new DifficultyManager();
+  const generator = new ProceduralGenerator(20260828, difficulty);
+  generator.reset(20260828);
+  difficulty.reset();
+
+  let drifting = 0;
+  let parked = 0;
+  let worstClosing = 0;
+  let speed = CFG.speed.base;
+  let z = 0;
+  let elapsed = 0;
+  for (let i = 0; i < 1500; i++) {
+    const plan = generator.next(speed);
+    for (const o of plan.obstacles) {
+      if (o.def.id === 'OBS_TrainMoving_01') {
+        if (o.driftZ < 0) { drifting++; worstClosing = Math.max(worstClosing, -o.driftZ / speed); }
+        else parked++;
+      }
+    }
+    elapsed += plan.length / speed;
+    z += plan.length;
+    speed = Math.min(CFG.speed.max, CFG.speed.base + CFG.speed.acceleration * elapsed);
+    difficulty.update(z, plan.length / speed);
+  }
+
+  check('the service train is generated at all', drifting + parked > 0,
+    `${drifting + parked} in 1500 segments`);
+  check('and every one of them is actually running', parked === 0,
+    `${parked} of ${drifting + parked} were stationary`);
+  check('toward the player, at the configured closing speed',
+    Math.abs(worstClosing - CFG.oncomingTrain.speedFactor) < 1e-6,
+    `${worstClosing.toFixed(3)} of the player's speed`);
+  console.log(`  ${drifting} service trains, closing at ${(CFG.oncomingTrain.speedFactor * 100).toFixed(0)}% ` +
+    `of player speed on top of the approach ` +
+    `(${(CFG.difficulty.reactionTimeHard / (1 + CFG.oncomingTrain.speedFactor) * 1000).toFixed(0)} ms ` +
+    `to react at maximum difficulty)`);
+}
+
+// The plan is one thing; what the streamer does with it is another. This runs
+// the real TrackManager and watches a service train come the whole way in.
+
+{
+  const difficulty = new DifficultyManager();
+  const generator = new ProceduralGenerator(4242, difficulty);
+  const collision = new CollisionSystem();
+  const coins = new CollectibleManager();
+  const powerUps = new PowerUpManager();
+  const track = new TrackManager(generator, collision, coins, powerUps);
+  track.reset(4242);
+  difficulty.reset();
+
+  const dt = 1 / 60;
+  let distance = 0;
+  // Start up the curve, where the service train is eligible.
+  let elapsed = 300;
+  let ratio = 0;
+  let approach = 0;
+
+  outer:
+  for (let f = 0; f < 60 * 300; f++) {
+    elapsed += dt;
+    const speed = Math.min(CFG.speed.max, CFG.speed.base + CFG.speed.acceleration * elapsed);
+    distance += speed * dt;
+    difficulty.update(distance, dt);
+    track.update(dt, distance, speed);
+
+    for (const o of collision.active) {
+      if (o.def.id !== 'OBS_TrainMoving_01') continue;
+      const rel = o.z - distance;
+      if (rel < 100 || rel > 110) continue;
+      // Follow this one to the player and time the approach.
+      const startRel = rel;
+      const startTime = elapsed;
+      let last = rel;
+      for (let g = 0; g < 60 * 30; g++) {
+        elapsed += dt;
+        const sp = Math.min(CFG.speed.max, CFG.speed.base + CFG.speed.acceleration * elapsed);
+        distance += sp * dt;
+        difficulty.update(distance, dt);
+        track.update(dt, distance, sp);
+        last = o.z - distance;
+        if (last <= 0) break;
+      }
+      const sp = Math.min(CFG.speed.max, CFG.speed.base + CFG.speed.acceleration * elapsed);
+      ratio = ((startRel - last) / (elapsed - startTime)) / sp;
+      approach = startRel;
+      break outer;
+    }
+  }
+
+  check('a service train is met in a run', approach > 0, 'none appeared in 300 s of streaming');
+  check('and it closes faster than the track alone would bring it',
+    Math.abs(ratio - (1 + CFG.oncomingTrain.speedFactor)) < 0.05,
+    `closed at ${ratio.toFixed(2)}x the player's speed, expected ${(1 + CFG.oncomingTrain.speedFactor).toFixed(2)}x`);
+  console.log(`  a service train eats ${approach.toFixed(0)} m of approach at ${ratio.toFixed(2)}x player speed`);
 }
 
 // ---------------------------------------------------------------- trains

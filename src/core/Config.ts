@@ -125,6 +125,26 @@ export const CFG = {
     multiplierMax: 8,
   },
 
+  /**
+   * Oncoming service trains. `OBS_TrainMoving_01` runs the other way down a
+   * lane, closing on the player at this fraction of their own speed on top of
+   * their approach — so the lane has to be cleared sooner than a parked train
+   * would demand. The fairness solver is the arbiter: it widens the hazard's
+   * Z span by its drift over the crossing and refuses anything that leaves no
+   * survivable route, so raising this number does not make the game unfair,
+   * it makes the generator reject more of what it tries.
+   */
+  oncomingTrain: {
+    /** Closing speed added, as a fraction of the player's speed. */
+    speedFactor: 0.55,
+    /**
+     * The train only starts running once it is this close. Further out it
+     * stands still, which keeps it inside its own segment rather than
+     * sweeping back through whatever the generator put behind it.
+     */
+    startsWithin: 95,
+  },
+
   difficulty: {
     /** Distance in metres at which difficulty reaches 1.0. */
     rampDistance: 4200,

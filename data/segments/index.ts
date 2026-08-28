@@ -171,10 +171,22 @@ export const SEGMENT_TEMPLATES: SegmentTemplate[] = [
     { type: 'train', id: 'OBS_TrainCar_01', lane: 0, z: 14, length: 9 },
     { type: 'obstacle', id: 'OBS_OverheadBeam_01', lane: 2, z: 11 },
   ]),
-  t('SEG_TrainMoving_01', 'train', 0.6, 1, 4, [
-    { type: 'train', id: 'OBS_TrainMoving_01', lane: 2, z: 0, length: 23 },
-    { type: 'coinPattern', id: 'PAT_Straight', lane: 0, z: 5 },
-  ]),
+  // A service running the other way, down the lane the player is already in.
+  //
+  // The coins are the point: they lead along the lane the train is coming
+  // down, so the player is running at it rather than watching it pass in a
+  // lane they were never using. The other two lanes are clear at the decision
+  // point, and the solver proves the break is makeable at the speed the player
+  // will actually be doing — with the train's closing speed widening the
+  // hazard, which is what makes the reaction guarantee bite here.
+  t('SEG_TrainMoving_01', 'train', 0.45, 1, 5, [
+    { type: 'train', id: 'OBS_TrainMoving_01', lane: 1, z: 2, length: 23 },
+    { type: 'coinPattern', id: 'PAT_Straight', lane: 1, z: 1 },
+  ], { entryLanes: [1] }),
+  t('SEG_TrainMoving_02', 'train', 0.55, 1, 4, [
+    { type: 'train', id: 'OBS_TrainMoving_01', lane: 0, z: 2, length: 23 },
+    { type: 'coinPattern', id: 'PAT_Straight', lane: 0, z: 1 },
+  ], { entryLanes: [0] }),
 
   // ---- Risk and reward -------------------------------------------------
   t('SEG_RiskReward_01', 'riskReward', 0.25, 1, 6, [

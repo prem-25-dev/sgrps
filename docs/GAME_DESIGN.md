@@ -87,8 +87,10 @@ Every obstacle teaches one verb, and its geometry tells you which:
 - **Ramps** — run up them; they are how you reach the roofs. They live in the
   ground category but are their own verb, and rise to 1.60 m, above the band
   above, because you are not meant to jump them.
-- **Trains** — block a lane entirely; the two parked cars have roofs that are a
-  route, the moving one does not.
+- **Trains** — parked stock blocks a lane entirely, and the two parked cars
+  have roofs that are a route. `OBS_TrainMoving_01` is a service running the
+  other way: it closes at 1.55x the player's own speed and its roof is not a
+  route, so the only answer is to be out of its lane in time.
 - **Dynamic** — trolleys, drums, swinging signs, sliding barriers, falling
   crates. The generator opens moving hazards at 0.45 difficulty, but every
   dynamic archetype carries its own gate of 0.55 or higher, so none can appear

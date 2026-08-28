@@ -254,13 +254,18 @@ export class ProceduralGenerator {
           const def = OBSTACLE_BY_ID[item.id!];
           if (!def) break;
           const dynamic = def.category === 'dynamic';
+          // A service train runs the other way. Everything else on a train
+          // lane is parked stock.
+          const oncoming = def.id === 'OBS_TrainMoving_01';
           plan.obstacles.push({
             def,
             lane: item.lane,
             z: startZ + item.z + (item.type === 'train' ? (item.length ?? def.depth) / 2 : 0),
             // Moving hazards close on the player slowly enough to stay fair:
             // never faster than a quarter of the closing speed.
-            driftZ: dynamic ? this.rng.range(-0.18, 0.22) * speed * 0.25 : 0,
+            driftZ: oncoming
+              ? -speed * CFG.oncomingTrain.speedFactor
+              : dynamic ? this.rng.range(-0.18, 0.22) * speed * 0.25 : 0,
             driftX: def.id === 'OBS_SlidingBarrier_01' ? this.rng.range(0.6, 1.1) : 0,
             seed: this.rng.int(1, 0xffff),
           });
