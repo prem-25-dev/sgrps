@@ -113,7 +113,13 @@ export const CFG = {
     /** Combo increments per pickup, decays after this idle time. */
     comboWindow: 2.4,
     comboStep: 1,
-    comboMax: 30,
+    /**
+     * The cap has to reach the top multiplier tier, or `multiplierMax` below
+     * is dead config and the ladder stops early. It was 30, which allowed
+     * 1 + floor(30/8) = x4, so the documented x8 — and `MIS_Multiplier8`,
+     * "Reach the maximum multiplier" — could never happen.
+     */
+    comboMax: 56,
     /** Multiplier granted per N combo. */
     comboPerMultiplier: 8,
     multiplierMax: 8,

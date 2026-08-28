@@ -236,6 +236,38 @@ console.log('\nMissions:');
     `${missions.missions.length}`);
 }
 
+{
+  // The check above feeds 1e9 into every metric, so it proves the tracker can
+  // *store* a value, not that the game can *produce* one. It passed for a long
+  // time on MIS_Multiplier8 — "Reach the maximum multiplier", target x8 —
+  // while the combo cap held the multiplier at x4, making a tier-4 mission
+  // impossible to finish. Metrics with a real ceiling are now checked against
+  // what the game can actually reach.
+  const topMultiplier = (() => {
+    const s = new ScoreManager();
+    s.reset();
+    for (let i = 0; i < CFG.score.comboMax + CFG.score.comboPerMultiplier; i++) s.addCoin();
+    return s.multiplier;
+  })();
+  // Boost multiplies speed after the clamp, so the ceiling is at least the cap.
+  const topSpeed = CFG.speed.max;
+
+  const ceilings: Record<string, number> = { multiplier: topMultiplier, topSpeed };
+  const unreachable = MISSION_DEFS
+    .filter((m) => m.metric in ceilings && m.target > ceilings[m.metric])
+    .map((m) => `${m.id} wants ${m.metric} ${m.target}, game reaches ${ceilings[m.metric]}`);
+  check('no mission asks for more than the game can produce', unreachable.length === 0,
+    unreachable.join('; '));
+
+  const unreachableAch = ACHIEVEMENT_DEFS
+    .filter((a) => (a as { metric?: string }).metric === 'topSpeed' &&
+      ((a as { target?: number }).target ?? 0) > topSpeed)
+    .map((a) => a.id);
+  check('no achievement asks for a speed the game cannot reach', unreachableAch.length === 0,
+    unreachableAch.join(', '));
+  console.log(`  ceilings: multiplier x${topMultiplier}, top speed ${topSpeed} m/s`);
+}
+
 // ---------------------------------------------------------------------------
 console.log('\nAchievements:');
 {
@@ -272,7 +304,10 @@ console.log('\nScore and combo:');
   check('a full combo step raises the multiplier', score.multiplier === 2, `x${score.multiplier}`);
 
   for (let i = 0; i < CFG.score.comboMax * 2; i++) score.addCoin();
-  check('the multiplier is capped', score.multiplier <= CFG.score.multiplierMax, `x${score.multiplier}`);
+  // Equality, not `<=`: the old form passed at x4 against a cap of x8, which
+  // is exactly the state that made MIS_Multiplier8 impossible.
+  check('the multiplier reaches its cap and stops there',
+    score.multiplier === CFG.score.multiplierMax, `x${score.multiplier} of x${CFG.score.multiplierMax}`);
 
   score.update(CFG.score.comboWindow + 0.1, 100, 12);
   check('the combo expires after the window', score.multiplier === 1, `x${score.multiplier}`);

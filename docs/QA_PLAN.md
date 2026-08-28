@@ -925,6 +925,56 @@ exponent flipped and flattened, relief that never decays, relief uncapped,
 hazards from the first metre, the ceiling ignored, and the reaction promise
 broken.
 
+## A mission nobody could finish
+
+`GAME_DESIGN.md` prints the scoring rules for the player: 10 a coin, 25 a near
+miss, both times the multiplier; combo +1 a coin and +2 a near miss, decaying
+after 2.4 s; a multiplier step every 8 combo, "to x8"; and the score power-up
+doubling that again "to a practical x16".
+
+Every one of those held except the ceiling. `comboMax` was 30 and the tier is
+`1 + floor(combo / 8)`, so the multiplier stopped at **x4**. `multiplierMax: 8`
+was dead config — the clamp it applies could never bind — and reaching x8 needs
+56 combo, nearly twice the cap.
+
+That is not only a documentation error. `MIS_Multiplier8` — *"Reach the maximum
+multiplier"*, tier 4, 600 coins — **could not be completed by any player**, and
+it sits in the mission ladder blocking the tier behind it.
+
+**And a reachability test said otherwise.** `test:progression` has always
+claimed every mission is completable, and it is honest about its method in its
+own comment: it feeds `1e9` into every metric and checks the tracker fires. That
+proves the tracker can *store* a value, not that the game can *produce* one. The
+distinction never mattered until a mission asked for a number the game could not
+reach.
+
+Two things changed. `comboMax` is now 56, the smallest cap that makes the top
+tier reachable, with a comment tying the two constants together. And the
+reachability check now compares every bounded mission and achievement target
+against a ceiling measured from the real systems — the multiplier by running a
+`ScoreManager` to its cap, top speed from `CFG`. Reverting the cap to 30 now
+fails five assertions across the two suites, naming `MIS_Multiplier8`
+specifically.
+
+It was worth measuring before changing a tuning value. 56 combo means 56
+pickups with no gap longer than 2.4 s, which is only a real target if the world
+supplies coins that densely. Streaming three seeds of real generated track and
+taking every coin gives peak uninterrupted chains of 779 to 1,115, with a
+median gap of 0.06 s — so a player collecting a small fraction of what is laid
+down can still hold the chain. The ceiling is demanding, not theoretical.
+
+### The self-referential assertion
+
+Six sabotage passes. Five were caught. The sixth changed `nearMiss` from 25 to
+10 and everything still passed, because the assertion read the expected value
+out of `CFG` and compared it against `CFG`: it proved the manager uses the
+configured number, never that the configured number is the published one.
+
+The literals the design document prints are now pinned separately, so the chain
+has both links — config against the document, behaviour against config. A
+retune has to move the document too, which is the point: those numbers are
+published to the player as the rules of the game.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

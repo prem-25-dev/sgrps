@@ -58,6 +58,9 @@ jobs:
       - name: Zones
         run: npm run test:zones
 
+      - name: Scoring
+        run: npm run test:scoring
+
       - name: Difficulty curve
         run: npm run test:difficulty
 
