@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { DecorScatter } from '../src/world/DecorScatter';
 import { buildStation } from '../src/assets/StationFactory';
+import { PROP_IDS, buildProp } from '../src/assets/PropFactory';
 import { CollectibleManager } from '../src/collectibles/CollectibleManager';
 import { CollisionSystem } from '../src/core/CollisionSystem';
 import { PowerUpManager } from '../src/powerups/PowerUpManager';
@@ -169,6 +170,36 @@ check('every zone in the schedule is reachable', ZONES.length >= 7, `${ZONES.len
     intruders.length === 0, [...new Set(intruders)].slice(0, 6).join('; '));
 }
 
+// ------------------------------------------------------------ lamps that light
+//
+// Emissive materials glow; they do not illuminate. Four separate things in
+// this world were named for lighting and emitted none: the tunnel's service
+// lamps, the train's nose lights, PROP_TrackLamp and PROP_StreetLight -- a
+// 6.4 m street light standing over an unlit road.
+//
+// They cast an additive pool on the ground rather than carrying a light,
+// because lamps are streamed decor and three.js recompiles every shader in the
+// scene when the light count changes. Both halves of that are checked here:
+// the lamps cast, and streaming the world never introduces a light.
+
+{
+  const missing: string[] = [];
+  for (const id of PROP_IDS) {
+    if (!/Lamp|StreetLight/.test(id)) continue;
+    const prop = buildProp(id);
+    let pooled = false;
+    prop.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mat = mesh.material as THREE.Material;
+      if (mat && (mat as THREE.MeshBasicMaterial).blending === THREE.AdditiveBlending) pooled = true;
+    });
+    if (!pooled) missing.push(id);
+  }
+  check('every lamp casts light onto the ground', missing.length === 0,
+    `${missing.join(', ')} still only glow`);
+}
+
 // ------------------------------------------------------- module variety
 //
 // Streaming the whole schedule also proves the world does not collapse onto
@@ -186,6 +217,7 @@ check('every zone in the schedule is reachable', ZONES.length >= 7, `${ZONES.len
   let distance = 0;
   let elapsed = 0;
   const built = new Set<string>();
+  const strayLights = new Set<string>();
   const span = ZONES[ZONES.length - 1].fromDistance + 1000;
   while (distance < span) {
     elapsed += dt;
@@ -193,11 +225,19 @@ check('every zone in the schedule is reachable', ZONES.length >= 7, `${ZONES.len
     distance += speed * dt;
     difficulty.update(distance, dt);
     track.update(dt, distance, speed);
-    track.root.traverse((o) => { if (o.name?.startsWith('TRK_')) built.add(o.name); });
+    track.root.traverse((o) => {
+      if (o.name?.startsWith('TRK_')) built.add(o.name);
+      if ((o as THREE.Light).isLight) strayLights.add(o.name || o.type);
+    });
   }
 
   check(`the world uses a spread of module variants over ${Math.round(distance)} m`,
     built.size >= 8, `${built.size} kinds: ${[...built].sort().join(', ')}`);
+  // The streamed world carries no lights of its own. Every light in the game
+  // is allocated once by the rig, because a light travelling in and out with a
+  // pooled object recompiles every shader in the scene as it goes.
+  check('and never streams a light in with the scenery',
+    strayLights.size === 0, [...strayLights].join(', '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

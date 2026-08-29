@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CFG, laneToX } from '../core/Config';
 import { hash01, mergeGeometries, place, roundedBox } from './GeometryUtil';
 import { decal, material } from './MaterialLibrary';
-import { createSurface } from './TextureFactory';
+import { lightPool } from './LightPool';
 
 /**
  * TRK_* modular track kit.
@@ -352,55 +352,6 @@ function liningMaterial(): THREE.MeshStandardMaterial {
   return tunnelLining;
 }
 
-/** The soft additive puddle a service lamp throws on the tunnel floor. */
-let lampPool: THREE.Material | null = null;
-function poolMaterial(): THREE.Material {
-  if (!lampPool) {
-    const map = radialFalloff();
-    lampPool = new THREE.MeshBasicMaterial({
-      color: 0xffc27a,
-      transparent: true,
-      opacity: 0.32,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    // Assigned rather than passed: three.js warns when a material parameter is
-    // present with an undefined value, and the headless harness has no canvas
-    // to draw the falloff on.
-    if (map) (lampPool as THREE.MeshBasicMaterial).map = map;
-  }
-  return lampPool;
-}
-
-/**
- * A round white-to-black gradient, so the pool has no visible edge. Built
- * through `createSurface`, which returns null under the headless harness where
- * there is no canvas -- the tunnel then just has no floor pool, rather than
- * throwing on `document` in a test run.
- */
-let falloff: THREE.Texture | null | undefined;
-function radialFalloff(): THREE.Texture | null {
-  if (falloff === undefined) {
-    const size = 64;
-    const surface = createSurface(size);
-    if (!surface) {
-      falloff = null;
-    } else {
-      const c = surface.ctx;
-      const grad = c.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-      grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.45, '#8a8a8a');
-      grad.addColorStop(1, '#000000');
-      c.fillStyle = grad;
-      c.fillRect(0, 0, size, size);
-      falloff = new THREE.CanvasTexture(surface.canvas as HTMLCanvasElement);
-      falloff.colorSpace = THREE.SRGBColorSpace;
-      falloff.needsUpdate = true;
-    }
-  }
-  return falloff;
-}
-
 function addTunnelShell(group: THREE.Group, ctx: ModuleContext): void {
   const radius = TRACK_HALF_WIDTH + 2.6;
   const shell = new THREE.Mesh(
@@ -431,8 +382,7 @@ function addTunnelShell(group: THREE.Group, ctx: ModuleContext): void {
     lamp.position.set(-radius * 0.72, 3.6, z);
     group.add(lamp);
 
-    const pool = new THREE.Mesh(new THREE.PlaneGeometry(radius * 1.1, 5.4), poolMaterial());
-    pool.rotation.x = -Math.PI / 2;
+    const pool = lightPool(radius * 1.1, 5.4);
     pool.position.set(-radius * 0.36, 0.06, z);
     group.add(pool);
   }

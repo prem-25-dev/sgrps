@@ -274,7 +274,21 @@ export function mergeByMaterial(group: THREE.Object3D): THREE.Object3D {
   const visit = (node: THREE.Object3D) => {
     for (const child of [...node.children]) visit(child);
     const mesh = node as THREE.Mesh;
-    if (!mesh.isMesh) return;
+    if (!mesh.isMesh) {
+      // Anything that is not a mesh used to be dropped here without a word.
+      // A light, a sprite or a line added to a merged factory group simply
+      // ceased to exist, with no error and nothing in the scene graph to show
+      // for it -- which is how a deliberately sabotaged street lamp passed a
+      // test written to catch exactly that light.
+      //
+      // Leaf non-meshes are carried across instead. Containers are not: their
+      // mesh children have just been merged and their geometry disposed, so
+      // re-parenting the container would draw from freed buffers.
+      const leaf = node.children.length === 0;
+      const container = (node as THREE.Group).isGroup || node.type === 'Object3D';
+      if (leaf && !container) keep.push(node);
+      return;
+    }
     const instanced = (mesh as unknown as THREE.InstancedMesh).isInstancedMesh;
     const skinned = (mesh as unknown as THREE.SkinnedMesh).isSkinnedMesh;
     if (instanced || skinned || mesh.userData.noMerge || Array.isArray(mesh.material)) {
@@ -317,6 +331,13 @@ export function mergeByMaterial(group: THREE.Object3D): THREE.Object3D {
     for (const geo of bucket.geometries) geo.dispose();
     out.add(merged);
   }
-  for (const node of keep) out.add(node);
+  for (const node of keep) {
+    // Bake the world transform the node had inside the original group, since
+    // it is about to lose the parents that carried it.
+    node.updateMatrixWorld(true);
+    node.matrix.copy(new THREE.Matrix4().multiplyMatrices(inverse, node.matrixWorld));
+    node.matrix.decompose(node.position, node.quaternion, node.scale);
+    out.add(node);
+  }
   return out;
 }

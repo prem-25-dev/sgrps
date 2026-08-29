@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeByMaterial, mergeGeometries, place, roundedBox } from './GeometryUtil';
 import { decal, material } from './MaterialLibrary';
+import { lightPool } from './LightPool';
 
 /**
  * PROP_* library: the lineside and street furniture that makes a procedural
@@ -283,6 +284,12 @@ export function buildProp(id: PropId): THREE.Group {
       bulb.scale.set(2.4, 0.5, 1.2);
       bulb.position.set(0.28, 4.48, 0);
       g.add(bulb);
+      // And the light it actually throws. See LightPool for why this is a
+      // puddle rather than a light: lamps are streamed decor, and a light that
+      // comes and goes with them changes the scene's light count.
+      const pool = lightPool(5.2, 5.2);
+      pool.position.x = 0.28;
+      g.add(pool);
       break;
     }
     case 'PROP_BufferStop': {
@@ -307,6 +314,13 @@ export function buildProp(id: PropId): THREE.Group {
       glow.rotation.x = -Math.PI / 2;
       glow.position.set(0, 6.1, 1.72);
       g.add(glow);
+      // A six-metre street light that lit nothing at all: the glow plane above
+      // is the lamp's own face, not what it casts. The pool is offset to sit
+      // under the arm rather than the pole, which is where a street light
+      // actually puts its light.
+      const cast = lightPool(7.4, 7.4);
+      cast.position.z = 1.72;
+      g.add(cast);
       break;
     }
     case 'PROP_TrafficLight': {
