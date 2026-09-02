@@ -1287,6 +1287,145 @@ Three sabotages, three catches, after the fix: removing the hold fails with the
 559 m drift, zeroing the headlight fails with "brightest was 0", and hiding it
 fails on the light count.
 
+## Content nobody ever saw
+
+The service train ran, closed at 1.55x, and was proved fair. Almost no
+player ever met one.
+
+Both templates were gated at difficulty 0.45 and 0.55, and the ramp does not
+reach those until roughly 2 km. Measured across five seeds, the first service
+train landed at 2040, 2208, 2256, 2304 and 2784 m. Runs end long before that:
+two of this session's own harness runs died at 560 m and 1.9 km. The hazard
+the whole game is built around was, in practice, unreachable content.
+
+Gated at 0.08 and 0.13 now. First encounter across eight seeds: 528-984 m,
+about seven per 6 km, with no extra generator rejections.
+
+There is a general lesson in it. Every other check in this plan asks whether a
+system *works*. None of them asked whether a player ever *reaches* it. A
+correct feature behind an unreachable gate is indistinguishable, from the
+player's side, from a feature that does not exist.
+
+### The solver defect it uncovered
+
+Lowering the gate changed which segments the differential sweep samples, and
+one of the newly sampled ones diverged: `SEG_Signal_01` at 12 m/s, a route the
+solver approved that no take-off offset could fly.
+
+The solver called an obstacle jumped the instant the player's feet reached its
+top -- no margin at all. The jump apex is 2.70 m. `OBS_SignalBox_01` is 2.6 m
+and declares `laneChange` as its only action. So the solver was approving
+routes that cleared it by ten centimetres, at a single instant of the arc, and
+the fine sweep found no take-off whatsoever that flies them.
+
+Feet must clear by `JUMP_CLEARANCE` = 0.15 m now. The number is chosen against
+what the physics achieves, not to make a test pass:
+
+    OBS_TallBarrier_01  2.70  needs 2.85  out of reach, dodge it
+    OBS_SignalBox_01    2.60  needs 2.75  out of reach, dodge it
+    OBS_FencePanel_01   2.40  needs 2.55  still jumpable, and test:vocabulary
+                                          already measures it clearing with
+                                          30 cm to spare
+
+Everything the vocabulary means to be jumped is 1.35 m or shorter, so the
+margin sits in a clean empty band and cannot drift into making a jumpable
+obstacle unjumpable. 0.25 m would be too far: the solver starts choosing
+take-offs its 0.5 m grid cannot state precisely, and the offset-route budget
+goes from 80 to 91. Zeroing the clearance brings the divergence straight back.
+
+## A run that was never static, and a jump that was
+
+Reported as: the character should move his hands while running, and should not
+be static while jumping.
+
+**The first measurement said the animation was broken, and it was wrong.** A
+probe reported the hands travelling 5.7 cm over two seconds at 12 m/s. The
+probe had never entered `locomotion`: `PlayerAnimator` starts in `menuIdle`,
+and `advanceStateMachine` only promotes `idle` to `locomotion`, so the rig was
+holding a menu pose the whole time. Driven properly the hands sweep 56 cm and
+the feet 134 cm. Another instrument lying until checked.
+
+**The real fault was the axis.** All of that sweep is along Z, and the player
+watches from directly behind, where fore-aft motion is foreshortened to almost
+nothing. Measured laterally, the hands moved 13 cm and the pelvis 2 mm. The
+run was full of movement that the one available camera angle could not see.
+
+The abduction term oscillates with the stride now, and the pelvis crosses onto
+each stance leg: 24 cm and 5 cm.
+
+**The jump genuinely was a held pose**: 1.6 cm of lateral hand travel across a
+whole arc. Deeper tuck, torso folding through the arc and opening to land,
+arms driving up and out: 23 cm across and 37 cm vertically.
+
+`test:animation` grows a section for what the gameplay camera can actually
+see, with floors on those axes. Restoring the flat arm flare, the old pelvis
+term, or the old airborne arms each fails it by name.
+
+### And the silhouette
+
+Close-up renders answered the "look like a real human" half. The arm's
+shoulder dome reached y=1.496, above the torso's own shoulder ring at 1.462,
+so the deltoid sat on the shoulder as a separate ball and the sleeve over it
+read as a puffed sleeve. The legs were one dark column -- offset 0.095 with a
+thigh radius up to 0.09 and 0.019 of trouser drape left about a centimetre
+between them. The wrist carried a bright dot, which was the watch face offset
+along the arm axis instead of seated on its strap.
+
+`ARM_X` and `LEG_X` now live in `HeroRig` and are imported by `HeroFactory`.
+They had been separate literals in both files, in six places: move the mesh
+outboard for a better silhouette and the bones stay put, so the skinning
+segments no longer run down the middle of the limb they drive.
+
+One check worth recording: the first rear-view render appeared to show a face
+through the back of the skull. It was the face in shadow -- `hero-shot.mjs`
+labels its angles from the model's own axes, and the hero is turned by
+`Math.PI - yaw` during a run, so "back" is the front. Verified before
+reporting, unlike the tunnel.
+
+## Lamps that lit nothing, and the merge that hid it
+
+Four things in this world were named for lighting and emitted none. Two were
+found chasing other bugs: the tunnel's service lamps, the train's nose lights.
+The other two were found by going looking: `PROP_TrackLamp`, and
+`PROP_StreetLight` -- a 6.4 m street light standing over a road it did not
+light. Emissive materials glow; they do not illuminate.
+
+The obvious fix is the one thing that cannot be done. Lamps are streamed
+decor, and three.js recompiles every shader in the scene when the light count
+changes, so a light travelling in and out with them would hitch continuously.
+They cast an additive pool on the ground instead -- one shared material, no
+light count change -- extracted into `LightPool` and shared with the tunnel
+rather than left as a second copy.
+
+`test:zones` checks both halves: every lamp casts, and streaming the whole
+schedule never introduces a light.
+
+### The sabotage that could not have failed
+
+Writing that second check turned up why it was worthless as written.
+
+`mergeByMaterial` silently discarded every non-mesh child. A light, a sprite
+or a line added to a merged factory group ceased to exist -- no error, nothing
+in the scene graph to show for it. A street lamp deliberately sabotaged with a
+real `PointLight` passed the test 14 of 14, because the light never survived
+the merge that built the prop.
+
+Leaf non-meshes are carried across now, with their transform baked. Containers
+are still dropped: their mesh children have just been merged and their geometry
+disposed, so re-parenting one would draw from freed buffers -- the same
+disposed-buffer trap that ate the ambient train carriages earlier in this
+build.
+
+With that fixed both sabotages bite: removing the pool fails with
+"PROP_StreetLight still only glow", and adding the point light fails with
+"never streams a light in with the scenery".
+
+This is the second time in this session that a guard was written, passed a
+sabotage, and turned out to be structurally incapable of failing -- the first
+was the light counter using `traverse` instead of `traverseVisible`. Both were
+caught only because the sabotage pass is run against every new guard, and
+neither would have been caught by reading the test.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and
