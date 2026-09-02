@@ -1,0 +1,47 @@
+{
+  "name": "neon-run",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "NEON RUN - a premium original 3D endless runner",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:geometry && npm run test:fairness && npm run test:differential && npm run test:gameplay && npm run test:progression && npm run test:controls && npm run test:animation && npm run test:vfx && npm run test:zones && npm run test:camera && npm run test:difficulty && npm run test:scoring && npm run test:vocabulary && npm run test:determinism && npm run test:tutorial && npm run test:soak",
+    "test:geometry": "esbuild scripts/test-geometry.ts --bundle --platform=node --format=esm --outfile=.tmp/geo.mjs && node .tmp/geo.mjs",
+    "test:fairness": "esbuild scripts/test-validator.ts --bundle --platform=node --format=esm --outfile=.tmp/val.mjs && node .tmp/val.mjs",
+    "test:soak": "esbuild scripts/soak.ts --bundle --platform=node --format=esm --outfile=.tmp/soak.mjs && node .tmp/soak.mjs",
+    "test:hero": "esbuild scripts/inspect-hero.ts --bundle --platform=node --format=esm --outfile=.tmp/hero.mjs && node .tmp/hero.mjs",
+    "playtest": "npm run build && node scripts/serve-and-playtest.mjs",
+    "test:tutorial": "esbuild scripts/test-tutorial-unit.ts --bundle --platform=node --format=esm --outfile=.tmp/tut.mjs && node .tmp/tut.mjs",
+    "test:gameplay": "esbuild scripts/test-gameplay.ts --bundle --platform=node --format=esm --outfile=.tmp/gameplay.mjs && node .tmp/gameplay.mjs",
+    "test:progression": "esbuild scripts/test-progression.ts --bundle --platform=node --format=esm --outfile=.tmp/prog.mjs && node .tmp/prog.mjs",
+    "test:animation": "esbuild scripts/test-animation.ts --bundle --platform=node --format=esm --outfile=.tmp/anim.mjs && node .tmp/anim.mjs",
+    "test:differential": "esbuild scripts/test-fairness-differential.ts --bundle --platform=node --format=esm --outfile=.tmp/diff.mjs && node .tmp/diff.mjs",
+    "test:ui-fit": "node scripts/test-ui-fit.mjs",
+    "test:audio": "node scripts/test-audio.mjs",
+    "test:touch": "node scripts/test-touch.mjs",
+    "test:vfx": "esbuild scripts/test-vfx.ts --bundle --platform=node --format=esm --outfile=.tmp/vfx.mjs && node .tmp/vfx.mjs",
+    "test:zones": "esbuild scripts/test-zones.ts --bundle --platform=node --format=esm --outfile=.tmp/zones.mjs && node .tmp/zones.mjs",
+    "test:vocabulary": "esbuild scripts/test-vocabulary.ts --bundle --platform=node --format=esm --outfile=.tmp/voc.mjs && node .tmp/voc.mjs",
+    "test:scoring": "esbuild scripts/test-scoring.ts --bundle --platform=node --format=esm --outfile=.tmp/sco.mjs && node .tmp/sco.mjs",
+    "test:difficulty": "esbuild scripts/test-difficulty.ts --bundle --platform=node --format=esm --outfile=.tmp/dif.mjs && node .tmp/dif.mjs",
+    "test:camera": "esbuild scripts/test-camera.ts --bundle --platform=node --format=esm --outfile=.tmp/cam.mjs && node .tmp/cam.mjs",
+    "test:determinism": "esbuild scripts/test-determinism.ts --bundle --platform=node --format=esm --outfile=.tmp/det.mjs && node .tmp/det.mjs",
+    "test:controls": "esbuild scripts/test-controls.ts --bundle --platform=node --format=esm --outfile=.tmp/ctl.mjs && node .tmp/ctl.mjs",
+    "test:rebind": "node scripts/test-rebind.mjs",
+    "test:hud-contrast": "node scripts/test-hud-contrast.mjs"
+  },
+  "devDependencies": {
+    "@types/three": "^0.169.0",
+    "esbuild": "^0.24.2",
+    "playwright": "^1.49.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  }
+}
