@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Random } from '../core/Random';
-import { place } from './GeometryUtil';
+import { mergeByMaterial, place } from './GeometryUtil';
 import { material } from './MaterialLibrary';
 
 /**
@@ -164,7 +164,17 @@ export function buildVegetation(id: VegetationId, seed = 1): THREE.Group {
       mesh.receiveShadow = true;
     }
   });
-  return g;
+
+  // Collapse to one draw per material.
+  //
+  // A tree is a recursive branch structure: a three-deep trunk comes out at
+  // around twenty separate meshes, and the roadside avenue puts a tree every
+  // few metres either side of the line. Unmerged, the planting alone was
+  // worth more draw calls than the rest of the world put together. Merging
+  // leaves bark and foliage — two draws — and the instanced grass blades
+  // survive it, because `mergeByMaterial` carries instanced meshes across
+  // rather than flattening them.
+  return mergeByMaterial(g) as THREE.Group;
 }
 
 /** Crossed-plane impostor for distant planting. */

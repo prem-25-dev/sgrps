@@ -14,11 +14,13 @@ import { decal, material, MaterialId } from './MaterialLibrary';
 
 export type BuildingArchetype =
   | 'ENV_Apartment' | 'ENV_Office' | 'ENV_Shop' | 'ENV_Restaurant'
-  | 'ENV_Warehouse' | 'ENV_Industrial' | 'ENV_Tower' | 'ENV_LowRise';
+  | 'ENV_Warehouse' | 'ENV_Industrial' | 'ENV_Tower' | 'ENV_LowRise'
+  | 'ENV_House';
 
 export const BUILDING_ARCHETYPES: BuildingArchetype[] = [
   'ENV_Apartment', 'ENV_Office', 'ENV_Shop', 'ENV_Restaurant',
   'ENV_Warehouse', 'ENV_Industrial', 'ENV_Tower', 'ENV_LowRise',
+  'ENV_House',
 ];
 
 interface Massing {
@@ -28,8 +30,8 @@ interface Massing {
   floorHeight: number;
   setbacks: number;
   body: MaterialId[];
-  facade: 'windowGrid' | 'curtainWall' | 'shopfront' | 'industrial';
-  roof: 'plant' | 'tanks' | 'aerials' | 'flat' | 'saw';
+  facade: 'windowGrid' | 'curtainWall' | 'shopfront' | 'industrial' | 'house';
+  roof: 'plant' | 'tanks' | 'aerials' | 'flat' | 'saw' | 'pitched';
   neonChance: number;
 }
 
@@ -65,6 +67,18 @@ const MASSING: Record<BuildingArchetype, Massing> = {
   ENV_LowRise: {
     width: [9, 15], depth: [9, 14], floors: [2, 5], floorHeight: 3.1, setbacks: 0,
     body: ['MAT_Brick', 'MAT_Plaster', 'MAT_PaintedWall'], facade: 'windowGrid', roof: 'flat', neonChance: 0.35,
+  },
+  /**
+   * A dwelling rather than a block: one or two storeys under a gable roof.
+   *
+   * Every other archetype tops out in a parapet, because every other
+   * archetype is commercial. A row of them reads as "city" at any distance
+   * and never as somewhere anyone lives, which is exactly the silhouette a
+   * street of houses is supposed to break.
+   */
+  ENV_House: {
+    width: [7.5, 10.5], depth: [8, 11], floors: [1, 2], floorHeight: 2.85, setbacks: 0,
+    body: ['MAT_Brick', 'MAT_Plaster', 'MAT_PaintedWall', 'MAT_Stone'], facade: 'house', roof: 'pitched', neonChance: 0,
   },
 };
 
@@ -224,6 +238,194 @@ function addIndustrialFacade(g: THREE.Group, width: number, depth: number, heigh
   g.add(rust);
 }
 
+/**
+ * Domestic frontage: a door somebody could walk through, windows with sills,
+ * and a low garden wall.
+ *
+ * Scale is what sells a house. A commercial facade repeats one window module
+ * up a wall and tells you nothing about how big the building is; a door is a
+ * human being's height and fixes the scale of everything beside it, which is
+ * what makes a two-storey house read as a house from a passing train rather
+ * than as a small office block.
+ */
+function addHouseFacade(g: THREE.Group, width: number, depth: number, height: number, rng: Random, night: number): void {
+  const front = depth / 2;
+  // Every distinct material on a house is another draw call, and the street
+  // puts a dozen of them on screen at once. Dressed stone does the sills,
+  // caps, surrounds, step and path; one timber does the door, the canopy and
+  // the fascia. It is also how houses are actually built.
+  const stone = material('MAT_Stone');
+  const timber = material(rng.bool(0.5) ? 'MAT_Wood' : 'MAT_WoodWorn');
+  const doorW = 0.95;
+  const doorH = 2.05;
+  const doorX = rng.range(-width * 0.22, width * 0.22);
+
+  // Door, set into a frame so it reads as an opening rather than a decal.
+  const frame = new THREE.Mesh(
+    place(new THREE.BoxGeometry(doorW + 0.22, doorH + 0.16, 0.12), [doorX, (doorH + 0.16) / 2, front + 0.03]),
+    stone,
+  );
+  g.add(frame);
+  const door = new THREE.Mesh(
+    place(new THREE.BoxGeometry(doorW, doorH, 0.1), [doorX, doorH / 2, front + 0.1]),
+    timber,
+  );
+  g.add(door);
+  const step = new THREE.Mesh(
+    place(new THREE.BoxGeometry(doorW + 0.6, 0.14, 0.7), [doorX, 0.07, front + 0.4]),
+    stone,
+  );
+  g.add(step);
+
+  // Porch canopy on brackets, on about half of them.
+  if (rng.bool(0.55)) {
+    const canopy = new THREE.Mesh(
+      place(roundedBox(doorW + 1.0, 0.12, 1.0, 0.05, 2), [doorX, doorH + 0.34, front + 0.45]),
+      timber,
+    );
+    canopy.rotation.x = -0.1;
+    g.add(canopy);
+    for (const s of [-1, 1]) {
+      const post = new THREE.Mesh(
+        place(new THREE.BoxGeometry(0.1, doorH + 0.3, 0.1), [doorX + s * (doorW * 0.5 + 0.4), (doorH + 0.3) / 2, front + 0.82]),
+        timber,
+      );
+      g.add(post);
+    }
+  }
+
+  // Windows: a pair either side of the door on the ground floor, then a row
+  // per upper storey. Lit at night, so a street of houses has life in it.
+  const litMat = material('MAT_WindowLit');
+  const darkMat = material('MAT_GlassTinted');
+  const sillMat = stone;
+  const storeys = Math.max(1, Math.round(height / 2.85));
+  for (let s = 0; s < storeys; s++) {
+    const y = 0.95 + s * 2.85;
+    const count = s === 0 ? 2 : 3;
+    for (let i = 0; i < count; i++) {
+      const x = count === 2
+        ? (i === 0 ? -width * 0.29 : width * 0.29)
+        : -width * 0.3 + (i * width * 0.3);
+      // Never put a ground-floor window where the door is.
+      if (s === 0 && Math.abs(x - doorX) < doorW) continue;
+      const w = 1.15;
+      const h = s === 0 ? 1.25 : 1.05;
+      const glass = new THREE.Mesh(
+        place(new THREE.BoxGeometry(w, h, 0.08), [x, y + h / 2, front + 0.06]),
+        rng.bool(0.18 + night * 0.6) ? litMat : darkMat,
+      );
+      g.add(glass);
+      const surround = new THREE.Mesh(
+        place(new THREE.BoxGeometry(w + 0.18, h + 0.18, 0.06), [x, y + h / 2, front + 0.02]),
+        sillMat,
+      );
+      g.add(surround);
+      const sill = new THREE.Mesh(
+        place(new THREE.BoxGeometry(w + 0.3, 0.1, 0.22), [x, y - 0.05, front + 0.1]),
+        sillMat,
+      );
+      g.add(sill);
+    }
+  }
+
+  // Garden wall with a gap for the path.
+  const wallY = 0.52;
+  const gap = doorW + 0.9;
+  for (const s of [-1, 1]) {
+    const inner = doorX + s * gap * 0.5;
+    const outer = s * width * 0.52;
+    const span = Math.abs(outer - inner);
+    if (span < 0.6) continue;
+    const wall = new THREE.Mesh(
+      place(new THREE.BoxGeometry(span, wallY, 0.24), [(inner + outer) / 2, wallY / 2, front + 2.6]),
+      material('MAT_Brick'),
+    );
+    g.add(wall);
+    const cap = new THREE.Mesh(
+      place(new THREE.BoxGeometry(span + 0.06, 0.08, 0.32), [(inner + outer) / 2, wallY + 0.04, front + 2.6]),
+      sillMat,
+    );
+    g.add(cap);
+  }
+  const path = new THREE.Mesh(
+    place(new THREE.BoxGeometry(gap - 0.3, 0.05, 2.4), [doorX, 0.025, front + 1.5]),
+    stone,
+  );
+  g.add(path);
+}
+
+/** Gable roof, chimney and eaves for the domestic archetype. */
+function addPitchedRoof(g: THREE.Group, width: number, depth: number, top: number, rng: Random): void {
+  const rise = rng.range(1.5, 2.3);
+  const overhangX = 0.35;
+  const overhangZ = 0.3;
+  const halfDepth = depth / 2 + overhangZ;
+  const slopeLength = Math.hypot(halfDepth, rise);
+  const angle = Math.atan2(rise, halfDepth);
+  const tileMat = material(rng.bool(0.5) ? 'MAT_RustedMetal' : 'MAT_Stone');
+  // Gable walls take the body plaster; the roof takes one tile material.
+
+  // Two slabs leaning against each other at the ridge.
+  for (const s of [-1, 1]) {
+    const slope = new THREE.Mesh(
+      new THREE.BoxGeometry(width + overhangX * 2, 0.14, slopeLength),
+      tileMat,
+    );
+    slope.position.set(0, top + rise / 2, (s * halfDepth) / 2);
+    slope.rotation.x = -s * angle;
+    slope.castShadow = true;
+    slope.receiveShadow = true;
+    g.add(slope);
+  }
+
+  // Ridge cap.
+  const ridge = new THREE.Mesh(
+    place(new THREE.BoxGeometry(width + overhangX * 2, 0.16, 0.26), [0, top + rise, 0]),
+    tileMat,
+  );
+  g.add(ridge);
+
+  // Gable ends: the triangle of wall between the eaves and the ridge. Without
+  // these the roof floats and you can see straight through the loft.
+  const shape = new THREE.Shape();
+  shape.moveTo(-depth / 2, 0);
+  shape.lineTo(depth / 2, 0);
+  shape.lineTo(0, rise);
+  shape.closePath();
+  const gableGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.24, bevelEnabled: false });
+  for (const s of [-1, 1]) {
+    const gable = new THREE.Mesh(gableGeo, tileMat);
+    gable.position.set(s > 0 ? width / 2 - 0.24 : -width / 2, top, 0);
+    gable.rotation.y = Math.PI / 2;
+    gable.castShadow = true;
+    g.add(gable);
+  }
+
+  // Fascia board along each eave, and a chimney off to one side.
+  for (const s of [-1, 1]) {
+    const fascia = new THREE.Mesh(
+      place(new THREE.BoxGeometry(width + overhangX * 2, 0.22, 0.1), [0, top - 0.06, s * halfDepth]),
+      material('MAT_Wood'),
+    );
+    g.add(fascia);
+  }
+  const chimneyX = rng.range(0.2, 0.36) * width * (rng.bool() ? 1 : -1);
+  const chimneyH = rise + rng.range(0.6, 1.1);
+  const chimney = new THREE.Mesh(
+    place(new THREE.BoxGeometry(0.7, chimneyH, 0.7), [chimneyX, top + chimneyH / 2, rng.range(-0.2, 0.2)]),
+    material('MAT_Brick'),
+  );
+  chimney.castShadow = true;
+  g.add(chimney);
+  const pot = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.16, 0.34, 8),
+    material('MAT_Brick'),
+  );
+  pot.position.set(chimneyX, top + chimneyH + 0.17, chimney.position.z);
+  g.add(pot);
+}
+
 function addRoofKit(
   g: THREE.Group,
   kind: Massing['roof'],
@@ -232,6 +434,12 @@ function addRoofKit(
   top: number,
   rng: Random,
 ): void {
+  // A pitched roof replaces the parapet and deck rather than sitting on them.
+  if (kind === 'pitched') {
+    addPitchedRoof(g, width, depth, top, rng);
+    return;
+  }
+
   const parapet = new THREE.Mesh(
     place(new THREE.BoxGeometry(width + 0.3, 0.7, depth + 0.3), [0, top + 0.35, 0]),
     material('MAT_ConcreteDirty'),
@@ -359,6 +567,7 @@ export function buildBuilding(opts: BuildingOptions): THREE.Group {
   }
 
   if (spec.facade === 'shopfront') addShopfront(g, width, depth, rng, rng.bool(spec.neonChance * (0.4 + opts.night)));
+  if (spec.facade === 'house') addHouseFacade(g, width, depth, y, rng, opts.night);
 
   const last = tops[tops.length - 1];
   addRoofKit(g, spec.roof, last.w, last.d, last.y, rng);
@@ -378,14 +587,35 @@ export function buildBuilding(opts: BuildingOptions): THREE.Group {
 /** Picks an archetype appropriate to a zone. */
 export function archetypeForZone(zone: string, rng: Random): BuildingArchetype {
   switch (zone) {
-    case 'ZONE_CityEdge': return rng.pick(['ENV_LowRise', 'ENV_Apartment', 'ENV_Shop', 'ENV_LowRise']);
-    case 'ZONE_Metro': return rng.pick(['ENV_Apartment', 'ENV_Office', 'ENV_Shop', 'ENV_LowRise']);
+    case 'ZONE_CityEdge': return rng.pick(['ENV_House', 'ENV_LowRise', 'ENV_House', 'ENV_Shop', 'ENV_Apartment']);
+    case 'ZONE_Metro': return rng.pick(['ENV_Apartment', 'ENV_House', 'ENV_Office', 'ENV_Shop', 'ENV_LowRise']);
     case 'ZONE_Downtown': return rng.pick(['ENV_Tower', 'ENV_Office', 'ENV_Tower', 'ENV_Apartment']);
     case 'ZONE_Industrial': return rng.pick(['ENV_Warehouse', 'ENV_Industrial', 'ENV_Warehouse']);
     case 'ZONE_Elevated': return rng.pick(['ENV_Apartment', 'ENV_LowRise', 'ENV_Office']);
     case 'ZONE_Construction': return rng.pick(['ENV_Industrial', 'ENV_LowRise', 'ENV_Warehouse']);
     case 'ZONE_Neon': return rng.pick(['ENV_Shop', 'ENV_Restaurant', 'ENV_Tower', 'ENV_Shop']);
     default: return rng.pick(BUILDING_ARCHETYPES);
+  }
+}
+
+/**
+ * Picks what stands on the residential side of the line.
+ *
+ * One side of a railway is almost never the same as the other: the tracks
+ * were laid along the back of somewhere, and one flank ends up domestic
+ * while the other keeps the sheds and the yards. This returns the domestic
+ * answer where a zone can support one, and defers to the ordinary picker
+ * where a house would be nonsense — nobody lives in the middle of a
+ * container terminal.
+ */
+export function residentialArchetypeForZone(zone: string, rng: Random): BuildingArchetype {
+  switch (zone) {
+    case 'ZONE_CityEdge': return rng.pick(['ENV_House', 'ENV_House', 'ENV_House', 'ENV_LowRise']);
+    case 'ZONE_Metro': return rng.pick(['ENV_House', 'ENV_House', 'ENV_Apartment', 'ENV_Shop']);
+    case 'ZONE_Elevated': return rng.pick(['ENV_House', 'ENV_Apartment', 'ENV_House', 'ENV_LowRise']);
+    case 'ZONE_Neon': return rng.pick(['ENV_House', 'ENV_Shop', 'ENV_Restaurant']);
+    case 'ZONE_Downtown': return rng.pick(['ENV_Apartment', 'ENV_House', 'ENV_LowRise']);
+    default: return archetypeForZone(zone, rng);
   }
 }
 
