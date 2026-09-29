@@ -172,7 +172,6 @@ export class Game {
     // belongs behind the loading bar where the player can see it happening.
     this.chaser = new Chaser();
     this.scene.add(this.chaser.root);
-    this.chaser.setEnabled(false);
     this.animator = new PlayerAnimator(this.hero);
     this.player = new PlayerController(this.hero, this.animator, this.collision, this.input, {
       onHit: (hit) => this.handleHit(hit),
@@ -224,7 +223,7 @@ export class Game {
     this.vfx.reset();
     this.cameraController.reset();
     this.player.reset();
-    this.chaser.setEnabled(this.save.settings.quality !== 'low');
+    this.chaser.setActive(true);
     this.chaser.reset();
     this.ui.resetHud();
     this.pendingResults = null;
@@ -277,7 +276,7 @@ export class Game {
     // The chaser stops being updated the moment the simulation does, and a
     // man frozen mid-stride behind the game-over orbit reads as a broken
     // model rather than as a pursuer. He leaves with the run.
-    this.chaser.setEnabled(false);
+    this.chaser.setActive(false);
     this.tutorial.finish();
     this.ui.setTutorial(null);
     this.difficulty.setCeiling(1);
@@ -366,7 +365,7 @@ export class Game {
     this.ui.onState(GameState.MAIN_MENU);
     this.animator.play('menuIdle', true);
     this.player.reset();
-    this.chaser.setEnabled(false);
+    this.chaser.setActive(false);
     this.track.reset(this.seed);
     // reset() empties the world; prime it again so the menu has a backdrop.
     this.track.update(0, 0, CFG.speed.base);
@@ -406,7 +405,7 @@ export class Game {
     this.track.setDecorDensity(profile.decorDensity);
     // A second skinned character is the single most expensive thing on
     // screen after the hero, so the weakest profile runs without one.
-    this.chaser?.setEnabled(s.quality !== 'low');
+    this.chaser?.setAllowed(s.quality !== 'low');
     this.track.ambientTrains.setEnabled(profile.decorDensity > 0.6);
 
     const shadows = s.shadows && profile.shadowSize > 0;
@@ -516,7 +515,14 @@ export class Game {
 
     this.lighting.aimHeadlight(this.track.nearestOncoming(s.distance), dt);
     this.chaser.update(dt, s, this.cameraDistanceToHero());
-    this.lighting.aimTorch(this.chaser.position, this.chaser.pressure, dt);
+    // No chaser, no torch. On the low profile he is switched off entirely,
+    // and a beam raking the track with nobody holding it is worse than no
+    // beam at all.
+    this.lighting.aimTorch(
+      this.chaser.enabled ? this.chaser.position : null,
+      this.chaser.pressure,
+      dt,
+    );
 
     this.audio.setIntensity(speedT);
     this.audio.setTrainProximity(this.track.trainProximity(s.distance));

@@ -67,7 +67,8 @@ function step(s: PlayerState): void {
 console.log('Where he runs:');
 {
   const chaser = new Chaser();
-  chaser.setEnabled(true);
+  chaser.setAllowed(true);
+  chaser.setActive(true);
   chaser.reset();
   const s = makeState();
 
@@ -116,7 +117,8 @@ console.log('\nWhether he can actually be seen:');
   controller.resize(1920, 1080);
   controller.reset();
   const chaser = new Chaser();
-  chaser.setEnabled(true);
+  chaser.setAllowed(true);
+  chaser.setActive(true);
   chaser.reset();
   const s = makeState();
 
@@ -182,7 +184,8 @@ console.log('\nWhether he can actually be seen:');
 console.log('\nWhat he responds to:');
 {
   const chaser = new Chaser();
-  chaser.setEnabled(true);
+  chaser.setAllowed(true);
+  chaser.setActive(true);
   chaser.reset();
   const s = makeState();
 
@@ -218,7 +221,8 @@ console.log('\nThe route he takes:');
   // running through whatever was there, and no amount of animation polish
   // will hide it.
   const chaser = new Chaser();
-  chaser.setEnabled(true);
+  chaser.setAllowed(true);
+  chaser.setActive(true);
   chaser.reset();
   const s = makeState();
 
@@ -265,7 +269,8 @@ console.log('\nThe route he takes:');
 console.log('\nHousekeeping:');
 {
   const chaser = new Chaser();
-  chaser.setEnabled(true);
+  chaser.setAllowed(true);
+  chaser.setActive(true);
   chaser.reset();
   const s = makeState();
   for (let i = 0; i < 60 * 30; i++) { step(s); chaser.update(DT, s, 7.4); }
@@ -277,9 +282,15 @@ console.log('\nHousekeeping:');
   const history = (chaser as unknown as { history: unknown[] }).history;
   check('the path history is bounded', history.length <= 96, `${history.length} samples`);
 
-  chaser.setEnabled(false);
+  chaser.setActive(false);
   chaser.update(DT, s, 7.4);
-  check('disabled, he stops being drawn', !chaser.root.visible);
+  check('he leaves with the run', !chaser.root.visible);
+  chaser.setActive(true);
+  check('and comes back with the next one', chaser.root.visible);
+  // The quality profile is a separate switch, and must not be undone by the
+  // run starting: a weak machine gets no chaser even mid-run.
+  chaser.setAllowed(false);
+  check('the weakest quality profile runs without him', !chaser.root.visible);
   chaser.dispose();
 }
 

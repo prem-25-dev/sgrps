@@ -359,6 +359,45 @@ console.log('\nA run that changes as it goes on:');
 }
 
 // ---------------------------------------------------------------------------
+console.log('\nThe name on the shirt:');
+{
+  // The print is a shell swept from the torso's own sections, so the two
+  // things that can go wrong are that it stops being built at all, and that
+  // it sinks into the shirt it is supposed to sit on.
+  const named = createHero({ ...DEFAULT_IDENTITY, shirtName: 'Subash M' });
+  const blank = createHero({ ...DEFAULT_IDENTITY, shirtName: '' });
+
+  const printOf = (hero: ReturnType<typeof createHero>) => {
+    let found: THREE.Mesh | null = null;
+    hero.rig.byName.get('chest')!.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && o.name === 'CHR_Hero_ShirtPrint') found = o as THREE.Mesh;
+    });
+    return found as THREE.Mesh | null;
+  };
+
+  const print = printOf(named);
+  check('a named runner wears the print', print !== null);
+  check('and a blank one does not', printOf(blank) === null);
+
+  if (print) {
+    // It has to stand outside the shirt, which itself sits 0.017 off the
+    // body, or the letters z-fight with the fabric they are printed on.
+    print.geometry.computeBoundingBox();
+    const box = print.geometry.boundingBox!;
+    const reach = Math.max(Math.abs(box.min.z), Math.abs(box.max.z));
+    const scale = DEFAULT_IDENTITY.height / REFERENCE_HEIGHT;
+    check('the print stands proud of the shirt', reach > 0.12 * scale,
+      `reaches ${(reach * 100).toFixed(1)} cm from the spine`);
+    // Sitting above the accent band and below the collar.
+    const midY = (box.min.y + box.max.y) / 2 + 1.24 * scale;
+    check('and sits across the shoulder blades', midY > 1.28 * scale && midY < 1.42 * scale,
+      `centred at y ${(midY / scale).toFixed(3)} in reference metres`);
+    check('the print carries a texture', !!(print.material as THREE.MeshStandardMaterial).map);
+  }
+  check('the rig is unchanged by it', rigIsSane(named).ok, rigIsSane(named).why);
+}
+
+// ---------------------------------------------------------------------------
 console.log('\nState machine:');
 {
   const hero = createHero(DEFAULT_IDENTITY);

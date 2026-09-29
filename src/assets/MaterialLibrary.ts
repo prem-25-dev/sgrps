@@ -7,6 +7,45 @@ import { dataTexture, fbm, noiseTexture, normalFromHeight, paintedTexture } from
  * Materials are shared instances so the renderer batches aggressively.
  */
 
+/**
+ * The name carried by the world's signage.
+ *
+ * The billboards and the ads pasted on the buildings are the two surfaces a
+ * player reads at distance, and they used to say different things. Sharing
+ * one constant means the city has one name on it rather than two that drift
+ * apart the next time either canvas is edited.
+ */
+export const SIGNAGE_NAME = 'SUBASH M';
+
+/**
+ * Draws one line of signage, shrunk to fit the space it has.
+ *
+ * The sizes here used to be hand-picked per sign, which works right up until
+ * the words change: at a fixed 17% of the canvas, "SUBASH M" ran off the
+ * right-hand edge of the billboard and the poster lost the "M" entirely.
+ * Measuring and shrinking means the sign fits whatever it is asked to carry.
+ */
+function fittedLine(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  centreX: number,
+  y: number,
+  maxWidth: number,
+  startPx: number,
+  weight = 'bold',
+): void {
+  let px = startPx;
+  const measure = () => {
+    ctx.font = `${weight} ${px}px system-ui, -apple-system, Segoe UI, sans-serif`;
+    return ctx.measureText(text).width;
+  };
+  while (measure() > maxWidth && px > 6) px *= 0.94;
+  const previous = ctx.textAlign;
+  ctx.textAlign = 'center';
+  ctx.fillText(text, centreX, y);
+  ctx.textAlign = previous;
+}
+
 export type MaterialId =
   | 'MAT_Asphalt'
   | 'MAT_AsphaltMarked'
@@ -364,9 +403,8 @@ const SPECS: Record<MaterialId, Spec> = {
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, s, s);
         ctx.fillStyle = '#ffffff';
-        ctx.font = `bold ${s * 0.15}px system-ui, sans-serif`;
-        ctx.fillText('NEON', s * 0.09, s * 0.45);
-        ctx.fillText('LINE 7', s * 0.09, s * 0.68);
+        fittedLine(ctx, 'MY NAME', s * 0.5, s * 0.44, s * 0.82, s * 0.14);
+        fittedLine(ctx, SIGNAGE_NAME, s * 0.5, s * 0.7, s * 0.86, s * 0.2, '800');
       },
     },
   },
@@ -551,9 +589,8 @@ export function decal(id: DecalId): THREE.MeshStandardMaterial {
         g.addColorStop(1, 'rgba(60,110,255,0.85)');
         ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${s * 0.16}px system-ui, sans-serif`;
-        ctx.fillText('RIDE THE', s * 0.1, s * 0.42);
-        ctx.fillText('NEON LINE', s * 0.1, s * 0.62);
+        fittedLine(ctx, 'MY NAME', s * 0.5, s * 0.4, s * 0.8, s * 0.15);
+        fittedLine(ctx, SIGNAGE_NAME, s * 0.5, s * 0.66, s * 0.86, s * 0.21, '800');
         break;
       }
     }

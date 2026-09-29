@@ -235,6 +235,22 @@ what happens to a copy embedded in a frame that was not granted the permission.
   forward, costs him knee drive and puts the work into his shoulders and arms.
   It never touches cadence, which stays locked to ground speed.
 
+## The runner's name
+
+The shirt carries a name, and so does the city. `HeroIdentity.shirtName`
+prints across the back of the shirt and, smaller, on the chest;
+`SIGNAGE_NAME` in the material library is what the billboards and the ads
+pasted on the buildings say. Both are one edit each — the print is a texture
+built from the string, and the signs measure and shrink their own lettering
+to fit whatever they are given.
+
+The print is a shell swept from the torso's own sections rather than a flat
+card: a card floats off the ribs at the edges and shears away the moment the
+runner leans, which at this camera distance is the whole time.
+
+The chaser's shirt is deliberately blank. A pursuer wearing the player's name
+reads as a second copy of them.
+
 ## The world either side of the line
 
 One flank of a railway is never the same as the other. The tracks were laid

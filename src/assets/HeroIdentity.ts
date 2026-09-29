@@ -73,6 +73,15 @@ export interface HeroIdentity {
     stubble: number;
   };
 
+  /**
+   * Printed across the back and chest of the shirt.
+   *
+   * Empty prints nothing. It lives on the identity rather than in the
+   * material because it belongs to a person, not to a fabric: two characters
+   * built from the same shirt material wear different names.
+   */
+  shirtName: string;
+
   outfit: {
     /** 'tee' or 'longSleeve'. */
     top: 'tee' | 'longSleeve';
@@ -91,6 +100,7 @@ export const DEFAULT_IDENTITY: HeroIdentity = {
   build: 0.42,
   shoulderRatio: 0.244,
   hipRatio: 0.185,
+  shirtName: 'Subash M',
 
   face: {
     length: 0.232,

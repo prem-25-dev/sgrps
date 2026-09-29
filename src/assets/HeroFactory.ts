@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries, place, Ring, ringXZ, sweep } from './GeometryUtil';
 import { HeroIdentity } from './HeroIdentity';
 import { ARM_X, LEG_X, REFERENCE_HEIGHT, Rig, buildRig, skinGeometry } from './HeroRig';
-import { noiseTexture } from './TextureFactory';
+import { noiseTexture, paintedTexture } from './TextureFactory';
 
 /**
  * CHR_Hero: a modelled, rigged, skinned human.
@@ -886,6 +886,117 @@ function buildHair(
   }
 }
 
+/** How far the print stands off the shirt, in reference metres. */
+const PRINT_CLEARANCE = 0.026;
+
+/**
+ * The name printed on the shirt.
+ *
+ * This is a thin shell swept over the chest from the torso's own sections,
+ * not a flat card stuck to the front: a card floats off the ribs at the
+ * edges and shears away the moment the runner leans, which at this camera
+ * distance is the whole time. Sharing the body's profile means the print
+ * curves with the chest exactly as a screen print does.
+ *
+ * `sweep` runs u right around the ring and v up the band, and a ring is
+ * `c + u*cos(a) + v*sin(a)` with u along +X and v along +Z. The model is
+ * authored facing -Z, so the back of the shirt — the side the player spends
+ * the entire game looking at — is a = PI/2, which is u = 0.25. The chest is
+ * u = 0.75. The texture puts the name at both.
+ */
+function buildShirtPrint(id: HeroIdentity, rig: Rig, scale: number): void {
+  const text = (id.shirtName ?? '').trim();
+  if (!text) return;
+  const chest = rig.byName.get('chest');
+  if (!chest) return;
+
+  const band = torsoSections(id).filter((s) => s.y >= 1.24 && s.y <= 1.43);
+  if (band.length < 2) return;
+
+  // The texture is square; the band it lands on is not. `sweep` maps u right
+  // around the ring and v up the band, so a 1024 x 1024 canvas is stretched
+  // across roughly a metre of circumference and fourteen centimetres of
+  // height — about seven to one. Drawn without compensating for that, the
+  // name came out as a dotted line a few pixels tall. The canvas is
+  // pre-stretched vertically by the same ratio so the letters land square.
+  const mid = band[Math.floor(band.length / 2)];
+  const circumference = Math.PI * ((mid.rx + PRINT_CLEARANCE) + (mid.rz + PRINT_CLEARANCE)) * scale;
+  const height = (band[band.length - 1].y - band[0].y) * scale;
+  const aspect = Math.max(1, circumference / Math.max(0.01, height));
+
+  const texture = paintedTexture(`CHR_ShirtPrint:${text}:${aspect.toFixed(2)}`, 1024, (ctx, size) => {
+    ctx.clearRect(0, 0, size, size);
+    ctx.save();
+    ctx.scale(1, aspect);
+    // Everything below is in the pre-stretch space: `size` wide, `rows` tall.
+    const rows = size / aspect;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // One print, drawn twice: large across the back, smaller on the chest.
+    // The back is u = 0.25 and the chest u = 0.75 — see the note above.
+    const print = (centreU: number, widthU: number, weight: number, mirror: boolean) => {
+      const boxW = size * widthU;
+      let px = rows * 0.6 * weight;
+      const fit = () => {
+        ctx.font = `800 ${px}px system-ui, -apple-system, Segoe UI, sans-serif`;
+        return ctx.measureText(text).width;
+      };
+      // Shrink to fit rather than clip: a long name has to stay on the shirt.
+      while (fit() > boxW && px > 6) px *= 0.94;
+      ctx.save();
+      ctx.translate(size * centreU, rows * 0.5);
+      // u winds one way around the ring, so of the two sides of the body one
+      // is seen with u increasing to the right and the other with it
+      // increasing to the left. Without this the name on the back — the side
+      // the player looks at for the whole game — is printed backwards.
+      if (mirror) ctx.scale(-1, 1);
+      // Dark outline first, so the name survives on a pale shirt as well as
+      // a dark one without needing to know which it is.
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = px * 0.2;
+      ctx.strokeStyle = 'rgba(5,9,16,0.92)';
+      ctx.strokeText(text, 0, 0);
+      ctx.fillStyle = '#f4f8fc';
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    };
+
+    // Kept inside the arc the camera can actually see: past about a quarter
+    // of the circumference the print wraps onto the ribs and stops reading.
+    print(0.25, 0.26, 1, true);
+    print(0.75, 0.2, 0.78, false);
+    ctx.restore();
+  }, { transparent: true });
+
+  const geometry = sweep(
+    sectionsToRings(band, 0, TORSO_PROFILE, scale, PRINT_CLEARANCE, 1),
+    { radialSegments: 30 },
+  );
+  // The band is built in model space; the bone it hangs from is not at the
+  // origin, so lift it into the bone's frame. Read the height off the rig
+  // rather than restating it, so moving the chest bone moves the print.
+  const chestY = rig.restWorld.get('chest')?.y ?? 1.24 * scale;
+  geometry.translate(0, -chestY, 0);
+
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    // A cutout rather than blending: the letters need to depth-sort against
+    // the arms that swing in front of them twice a stride.
+    alphaTest: 0.42,
+    roughness: 0.82,
+    metalness: 0,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  const print = new THREE.Mesh(geometry, material);
+  print.name = 'CHR_Hero_ShirtPrint';
+  print.castShadow = false;
+  print.receiveShadow = true;
+  chest.add(print);
+}
+
 /** Optional signature accessories driven by the identity outfit block. */
 function buildAccessories(id: HeroIdentity, rig: Rig, mats: HeroMaterials, scale: number): void {
   if (id.outfit.watch) {
@@ -947,6 +1058,7 @@ export function createHero(identity: HeroIdentity): Hero {
     lods.push(group);
   }
   buildAccessories(identity, rig, materials, scale);
+  buildShirtPrint(identity, rig, scale);
 
   let currentLod: HeroLod = 0;
   const hero: Hero = {

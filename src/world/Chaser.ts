@@ -120,7 +120,18 @@ export class Chaser {
   private lateral = LATERAL_OFFSET;
   private airborne = false;
   private sliding = false;
-  private enabled = true;
+  /**
+   * Two separate conditions, because they are set from two different places
+   * and one used to silently undo the other.
+   *
+   * `allowed` is the quality profile's answer — the weakest profile runs
+   * without a second skinned character. `active` is whether a run is
+   * happening. `applyQuality` runs during boot *after* the menu has asked
+   * for no chaser, so a single flag meant the inspector was left standing on
+   * the main menu, in shot, next to the runner.
+   */
+  private allowed = true;
+  private active = false;
 
   constructor() {
     this.root.name = 'CHR_Chaser';
@@ -132,6 +143,9 @@ export class Chaser {
       name: 'Inspector',
       height: 1.86,
       build: 0.72,
+      // The name on the shirt belongs to the player. A pursuer wearing it
+      // would read as a second copy of them.
+      shirtName: '',
       shoulderRatio: 0.27,
       colors: {
         skin: 0x8d6449,
@@ -169,9 +183,25 @@ export class Chaser {
     return Math.min(1, Math.max(0, t));
   }
 
-  setEnabled(on: boolean): void {
-    this.enabled = on;
-    this.root.visible = on;
+  /** The quality profile's answer: can this machine afford a chaser at all. */
+  setAllowed(on: boolean): void {
+    this.allowed = on;
+    this.applyVisibility();
+  }
+
+  /** Whether a run is under way. He exists only during one. */
+  setActive(on: boolean): void {
+    this.active = on;
+    this.applyVisibility();
+  }
+
+  private applyVisibility(): void {
+    this.root.visible = this.allowed && this.active;
+  }
+
+  /** True when he is both permitted and in play. */
+  get enabled(): boolean {
+    return this.allowed && this.active;
   }
 
   reset(): void {
@@ -186,7 +216,7 @@ export class Chaser {
     this.sliding = false;
     this.animator.reset();
     this.root.position.set(0, 0, -GAP.cruise);
-    this.root.visible = this.enabled;
+    this.applyVisibility();
   }
 
   /** The player took a hit: he lunges. */

@@ -1532,6 +1532,46 @@ nothing there but track, obstacles and the two characters. The object was
 frame: the run had ended on it. Recorded because the wrong diagnosis was one
 edit away from being acted on.
 
+## A name that was printed sideways, backwards and off the edge
+
+Putting a name on the shirt and on the signage looked like a text change. It
+took four passes, and every one of them was found by looking at the result
+rather than by reading the code.
+
+**The print came out as a dotted line.** `sweep` maps u right around the ring
+and v up the band, so a square 1024 canvas lands on roughly a metre of
+circumference and fourteen centimetres of height — about seven to one. Drawn
+without compensating, the letters were squashed to a few pixels tall and read
+as stitching. The canvas is pre-stretched vertically by the measured ratio
+now, so the glyphs land square.
+
+**Then it was printed backwards.** A ring is `c + u*cos(a) + v*sin(a)` with u
+along +X and v along +Z, so u winds one way around the body: of the two sides,
+one is seen with u increasing to the right and the other with it increasing to
+the left. The back — the side the player looks at for the entire game — was
+the mirrored one. Each print now carries its own horizontal flip.
+
+**Both signs clipped.** The billboard and the poster had hand-picked font
+sizes, which works until the words change: at a fixed 17% of the canvas,
+"SUBASH M" ran off the right edge of the billboard and the poster lost the
+"M" entirely. They measure and shrink to fit now, so a sign fits whatever it
+is asked to carry.
+
+**And the inspector was standing on the main menu.** This one was not about
+text at all — the first screenshot taken to check the shirt showed a figure in
+a dark uniform with a yellow band, which read as the hero wearing the
+chaser's clothes. Dumping both identities at runtime showed them correctly
+distinct, and the real cause was one flag doing two jobs: `applyQuality` runs
+during boot *after* the menu has asked for no chaser, so it switched him back
+on and left him standing beside the runner, in shot, on every visit to the
+menu. Quality permission and run state are separate flags now, and
+`test:chaser` checks that the run switch and the quality switch cannot undo
+each other.
+
+The whole episode is a good argument for screenshots: the suite was green
+through the first three of those, because none of them is visible to a test
+that asks whether a mesh exists.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and
