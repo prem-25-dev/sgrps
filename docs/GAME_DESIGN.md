@@ -1,0 +1,309 @@
+# NEON RUN — game design
+
+## The pitch
+
+A third-person 3D endless runner. You run, permanently and accelerating,
+through a procedurally generated metro city: three lanes of railway, trains to
+dodge and run along, coins to chase into risky lanes, and a difficulty curve
+that never asks for something you cannot do.
+
+It is genre-inspired by lane-based endless runners. It copies none of them:
+every character, model, texture, sound, piece of music and line of UI in this
+repository was made for it.
+
+## Core loop
+
+```
+run → read the road → dodge / jump / slide → collect → chain a combo
+    → power-up → survive → speed rises → difficulty rises → game over
+    → missions and achievements bank → replay
+```
+
+The loop is 15–90 seconds early on and several minutes once a player is good.
+The thing that should keep them going is the **combo**: coins and near misses
+both feed it, it decays in 2.4 s of playing safe, and it drives a multiplier
+up to ×8. Playing safe is survivable. Playing safe is not how you score.
+
+## Controls
+
+| Action | Keyboard | Touch |
+|---|---|---|
+| Change lane | ← → or A D | swipe left / right |
+| Jump | ↑, W or Space | swipe up |
+| Slide | ↓, S or Shift | swipe down |
+| Pause | Esc or P | — |
+
+Those are defaults. Every one of them can be moved in Settings → Controls,
+which matters for anyone who cannot comfortably reach the keys a designer
+happened to pick: a player using one hand, a switch device, or simply a layout
+these defaults were not drawn for.
+
+Two rules keep rebinding from breaking the game rather than fixing it. A key
+can only mean one thing, so binding a key that another action holds takes it
+away from that action — unless it was that action's last key, which is refused
+and explained instead, because an action with no key is one the player can
+never perform again. And Enter is reserved: it operates the menus, including
+the menu that holds the rebinding controls.
+
+Bindings are stored as physical key positions (`KeyboardEvent.code`) rather
+than printed letters. That is why the default WASD cluster lands in the same
+place on AZERTY and Dvorak, and why the settings panel asks the browser for the
+real layout before it labels a key.
+
+Three things make the controls feel fair rather than twitchy:
+
+- **Coyote time** (0.11 s) — a jump pressed just after running off a train
+  roof still fires.
+- **Jump buffering** (0.16 s) — a jump pressed just before landing fires on
+  touchdown instead of being eaten.
+- **Variable jump height** — releasing early cuts the arc, so the same button
+  clears a low crate or a tall barrier.
+
+A second lane input mid-move sharpens the dodge rather than queuing it.
+
+## Movement numbers
+
+| | |
+|---|---|
+| Lanes | 3, 2.4 m apart |
+| Base speed | 11.5 m/s, +0.085 m/s², capped at 31 m/s |
+| Jump | 21.0 m/s initial, −66 m/s² gravity → 3.34 m peak, 0.64 s airtime |
+| Slide | 0.72 s, collider height 0.85 m |
+| Lane change | 0.17 s (0.12 s when sharpened) |
+
+The jump peak is set deliberately: 3.34 m clears a 2.55 m container, and from
+a 1.2 m ramp it reaches a 3.15 m train roof. Those two numbers are what make
+rooftop routes real rather than decorative.
+
+Height and airtime are not separate dials. From the launch speed and gravity,
+the peak is v²/2g and the airtime 2v/g, so buying height by winding up the
+launch speed alone also buys float — and at 31 m/s the runner already crosses
+18.6 m of track in one jump. Raising gravity alongside it spends the change on
+height instead: the peak went from 2.70 m to 3.34 m while the airtime moved
+only from 0.60 s to 0.64 s.
+
+Raising the jump moved the dodge-only obstacles with it, because those two
+things are one decision. A wall is only dodge-only while the runner cannot get
+over it, and measured against the solver that line sits at about 0.96 of the
+peak — at the old 2.70 m peak, 2.60 m, which is exactly where those obstacles
+were. The category had no margin in it at all, so every one of them would have
+become jumpable. They were scaled by the same factor as the jump instead, and
+`test:fairness` now asserts each one is unjumpable at every speed the game
+reaches, reading both sides out of the data rather than from a number written
+down beside them.
+
+## Obstacle vocabulary
+
+Every obstacle teaches one verb, and its geometry tells you which:
+
+- **Ground** (top 0.85–1.35 m) — jump, or change lane.
+- **Overhead** (underside at 1.05 m+) — slide, or change lane. The number that
+  matters is the 0.85 m sliding collider; the tightest clearance is 0.20 m.
+- **Full height** — change lane. That is the answer the game guarantees, and
+  for three of the five archetypes it is the only one.
+- **Ramps** — run up them; they are how you reach the roofs. They live in the
+  ground category but are their own verb, and rise to 1.60 m, above the band
+  above, because you are not meant to jump them.
+- **Trains** — parked stock blocks a lane entirely, and the two parked cars
+  have roofs that are a route. `OBS_TrainMoving_01` is a service running the
+  other way: it closes at 1.55x the player's own speed and its roof is not a
+  route, so the only answer is to be out of its lane in time.
+- **Dynamic** — trolleys, drums, swinging signs, sliding barriers, falling
+  crates. The generator opens moving hazards at 0.45 difficulty, but every
+  dynamic archetype carries its own gate of 0.55 or higher, so none can appear
+  before then.
+
+Two full-height archetypes are passable without changing lane, measured by
+flying the real controller at them: **OBS_Container_01** at 2.55 m is standable
+and is the rooftop route this document celebrates two sections up, and
+**OBS_FencePanel_01** at 2.97 m is only 0.16 m deep, so a held jump carries you
+over it at pace. The other three cannot be cleared at any speed or timing —
+including OBS_SignalBox_01 at 3.22 m, which is a shade under the 3.34 m jump
+peak but 1.4 m deep, so the player is descending before they are past it.
+
+Their `requiredActions` stays lane-change-only regardless, on purpose: it is
+what the fairness solver plans with, and a guarantee that depends on
+frame-perfect timing is not a guarantee. `test:vocabulary` pins both the
+geometry and the measured behaviour, so an edit that takes the rooftop route
+away — or makes a wall hoppable — is visible.
+
+33 archetypes. The metadata each one carries (`requiredActions`, height,
+`standable`, `slope`) is the contract the fairness engine reasons about.
+
+## Fairness
+
+The design rule is absolute: **the generator may never kill you.**
+
+Before any pattern is spawned, a breadth-first search over the player's full
+state space proves at least one survivable route exists at the speed the
+player will actually be doing. It also proves the player had a minimum clear
+approach before each forced decision — 0.95 s of reaction time at low
+difficulty, tightening to 0.52 s at maximum.
+
+Patterns that fail are repaired by removing the offending obstacles, or
+replaced. Verified over 288 km of generated track: zero unsurvivable segments.
+
+Difficulty also *backs off* after a stumble, so a recovery is winnable.
+
+## Scoring
+
+```
+score = Σ (speed × dt × multiplier)      distance
+      + 10 × coins × coinMultiplier × multiplier
+      + 25 × nearMisses × multiplier
+```
+
+- Combo +1 per coin, +2 per near miss, decaying after 2.4 s idle.
+- Every 8 combo raises the multiplier one step, to ×8.
+- The score multiplier power-up doubles it again, to a practical ×16.
+
+## Power-ups
+
+| | Effect | Duration |
+|---|---|---|
+| Magnet | Pulls coins within 9.5 m | 9 s |
+| Shield | Absorbs one collision | 12 s |
+| Score ×2 | Doubles all score | 10 s |
+| Boost | 1.42× speed surge | 6 s |
+| Coin ×2 | Doubles coin value | 11 s |
+
+They stack. A shield plus a boost plus a score multiplier is the run where
+you push into the outside lane on purpose.
+
+## Zones
+
+Seven, unlocking by distance and cycling afterwards so a long run keeps
+changing: City Edge → Metro District → Downtown → Industrial Belt → Elevated
+Line → Construction → Neon District. Each changes buildings, props, planting,
+lighting, fog, materials and music intensity. None changes the rules of play.
+
+## First run
+
+A player with no history gets the tutorial: a real run, at capped difficulty,
+with six prompts gated on distance. Each waits for the player to perform the
+action once; anything ignored times out, so someone who already knows the
+genre is never held up. Pausing part-way resumes back into the lesson rather
+than skipping the rest of it. It never appears again once a run is completed.
+
+## Progression
+
+- **Missions** — three active at a time, drawn from the lowest unfinished
+  tier, 15 across 5 tiers. Completing them pays coins and unlocks the next
+  tier.
+- **Achievements** — 12 lifetime milestones, from First Run to Master Runner.
+- **Persistence** — best score, best distance, coins, totals, top speed,
+  longest clean run, missions and achievements, plus all settings.
+
+## Difficulty curve
+
+One normalised number, 0 → 1 over 4,200 m, shaped by an exponent below one so
+that it runs *ahead* of a linear ramp for the whole climb and flattens towards
+the top rather than slamming into 1. It drives obstacle density, which
+templates are eligible, how often dynamic hazards appear, power-up frequency,
+and the reaction-time guarantee. The player feels it as: more lanes closed at
+once, less room between decisions, and hazards that move.
+
+The curve is front-loaded, and this section previously said the opposite — that
+it was "eased so the first few hundred metres stay gentle", which is what an
+exponent *above* one would do. Whether the front-loading was intended or the
+exponent simply never matched the intent is not recorded anywhere; what
+follows is measured from the code rather than inferred from the prose:
+
+| moment | actual | a linear ramp |
+|---|---|---|
+| leaves "Warm up" | 369 m | 630 m |
+| leaves "Cruising" | 1,093 m | 1,470 m |
+| moving hazards begin | 1,509 m | 1,890 m |
+
+Whether it *should* be front-loaded is a balance decision rather than a defect:
+the fairness engine proves every segment survivable at whatever difficulty it
+is handed, so the shape changes how the game feels, not whether it is fair.
+`test:difficulty` holds the curve to these numbers, so a retune shows up as a
+diff in metres rather than as a vague change in feel.
+
+New players do get a gentle opening, but from the tutorial rather than the
+curve: it caps difficulty outright while it runs.
+
+## Full screen
+
+A button on the main menu and in the pause panel, using the Fullscreen API with
+Safari's prefixed calls. It hides itself where the browser cannot put an
+ordinary element full screen at all — iOS Safari only does this for `<video>` —
+and says so rather than failing silently when the request is refused, which is
+what happens to a copy embedded in a frame that was not granted the permission.
+
+## Presentation
+
+- Camera: smooth chase with lane lean, speed FOV, landing impact, a slide
+  drop, near-miss shake, and a slow-motion orbit on death. It never clips
+  through the deck.
+- VFX: 23 effects from one shared particle system — dust, sparks, coin bursts,
+  speed lines, shield bubble, magnet field, collision debris.
+- Audio: adaptive three-layer score that thickens with speed, per-zone
+  ambience beds, and a rolling-stock bed that swells as trains pass.
+- Lens grade: a vignette and a cool corner wash composited over the canvas in
+  CSS rather than a post-processing chain — no second render target, no shader
+  to maintain, and nothing for the software rasteriser in CI to choke on. It
+  sits under the HUD, so the interface is never dimmed by it.
+- Shadows are fitted to a 30 x 36 m box around the player rather than the 44 m
+  box they used to use. At 2048 that is 68 texels per metre, which is where a
+  contact shadow starts reading as contact rather than as dirt.
+- The runner's form changes over a long run: an effort layer folds him
+  forward, costs him knee drive and puts the work into his shoulders and arms.
+  It never touches cadence, which stays locked to ground speed.
+
+## The runner
+
+The runner is Subash M, built from a photograph rather than invented. Face
+proportions, hair volume, beard, build and colours are all measurements —
+`HERO_PIPELINE.md` has the table of which pixel each one came from. The one
+deliberate departure is the shirt: he wears black, and black on a runner seen
+against a night city is a silhouette with nothing in it, so the shirt keeps
+the photographed charcoal and the trim takes the one colour he actually wears
+— the red thread on his right wrist, which the model wears too.
+
+## The runner's name
+
+The shirt carries a name, and so does the city. `HeroIdentity.shirtName`
+prints across the back of the shirt and, smaller, on the chest;
+`SIGNAGE_NAME` in the material library is what the billboards and the ads
+pasted on the buildings say. Both are one edit each — the print is a texture
+built from the string, and the signs measure and shrink their own lettering
+to fit whatever they are given.
+
+The print is a shell swept from the torso's own sections rather than a flat
+card: a card floats off the ribs at the edges and shears away the moment the
+runner leans, which at this camera distance is the whole time.
+
+The chaser's shirt is deliberately blank. A pursuer wearing the player's name
+reads as a second copy of them.
+
+## The world either side of the line
+
+One flank of a railway is never the same as the other. The tracks were laid
+along the back of somewhere, and one side ends up domestic while the other
+keeps the sheds and the yards.
+
+- **Screen-left is residential.** Houses — a dedicated archetype with a gable
+  roof, chimney, porch, sills and a garden wall — stand closer to the line
+  than the commercial blocks opposite, because a house at an office block's
+  setback is a smudge on the horizon. A measured run at 130 m had nine houses
+  on the left against four on the right.
+- **Both sides are planted.** The roadside avenue is a rhythm rather than a
+  dice roll: a tree every 8.5 m on a grid of absolute track Z, offset half a
+  spacing between the sides, thinned by zone but never switched off. Scattered
+  planting alone left whole zones with nothing passing close by, and a runner
+  with nothing passing close by has no sense of speed at all.
+- **The bands are disjoint by construction.** Cess props at 6.0–8.0 m from the
+  centre line, the neighbouring running lines at 10.2 m where the ambient
+  trains pass, the avenue at 12.2–14.4 m, the service road at 15.0–18.4 m,
+  gardens and buildings beyond. Trees planted at a distance that merely looked
+  right sat on the live lines and were driven through several times a minute.
+
+## Definition of done
+
+Tracked against the production bible's checklist in `QA_PLAN.md`. The hero is
+no longer open: `DEFAULT_IDENTITY` is measured from a reference photograph, and
+`HERO_PIPELINE.md` records which pixel each number came from. Two values in it
+are still estimates, and are marked as such in the file — standing height and
+head depth, neither of which a head-and-shoulders photograph can give.
