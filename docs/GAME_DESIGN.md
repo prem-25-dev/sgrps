@@ -67,13 +67,30 @@ A second lane input mid-move sharpens the dodge rather than queuing it.
 |---|---|
 | Lanes | 3, 2.4 m apart |
 | Base speed | 11.5 m/s, +0.085 m/s², capped at 31 m/s |
-| Jump | 18.0 m/s initial, −60 m/s² gravity → 2.70 m peak, 0.60 s airtime |
+| Jump | 21.0 m/s initial, −66 m/s² gravity → 3.34 m peak, 0.64 s airtime |
 | Slide | 0.72 s, collider height 0.85 m |
 | Lane change | 0.17 s (0.12 s when sharpened) |
 
-The jump peak is set deliberately: 2.70 m clears a 2.55 m container, and from
+The jump peak is set deliberately: 3.34 m clears a 2.55 m container, and from
 a 1.2 m ramp it reaches a 3.15 m train roof. Those two numbers are what make
 rooftop routes real rather than decorative.
+
+Height and airtime are not separate dials. From the launch speed and gravity,
+the peak is v²/2g and the airtime 2v/g, so buying height by winding up the
+launch speed alone also buys float — and at 31 m/s the runner already crosses
+18.6 m of track in one jump. Raising gravity alongside it spends the change on
+height instead: the peak went from 2.70 m to 3.34 m while the airtime moved
+only from 0.60 s to 0.64 s.
+
+Raising the jump moved the dodge-only obstacles with it, because those two
+things are one decision. A wall is only dodge-only while the runner cannot get
+over it, and measured against the solver that line sits at about 0.96 of the
+peak — at the old 2.70 m peak, 2.60 m, which is exactly where those obstacles
+were. The category had no margin in it at all, so every one of them would have
+become jumpable. They were scaled by the same factor as the jump instead, and
+`test:fairness` now asserts each one is unjumpable at every speed the game
+reaches, reading both sides out of the data rather than from a number written
+down beside them.
 
 ## Obstacle vocabulary
 
@@ -99,9 +116,9 @@ Every obstacle teaches one verb, and its geometry tells you which:
 Two full-height archetypes are passable without changing lane, measured by
 flying the real controller at them: **OBS_Container_01** at 2.55 m is standable
 and is the rooftop route this document celebrates two sections up, and
-**OBS_FencePanel_01** at 2.40 m is only 0.16 m deep, so a held jump carries you
-over it at every speed. The other three cannot be cleared at any speed or
-timing — including OBS_SignalBox_01 at 2.60 m, which is under the 2.70 m jump
+**OBS_FencePanel_01** at 2.97 m is only 0.16 m deep, so a held jump carries you
+over it at pace. The other three cannot be cleared at any speed or timing —
+including OBS_SignalBox_01 at 3.22 m, which is a shade under the 3.34 m jump
 peak but 1.4 m deep, so the player is descending before they are past it.
 
 Their `requiredActions` stays lane-change-only regardless, on purpose: it is
@@ -235,6 +252,16 @@ what happens to a copy embedded in a frame that was not granted the permission.
   forward, costs him knee drive and puts the work into his shoulders and arms.
   It never touches cadence, which stays locked to ground speed.
 
+## The runner
+
+The runner is Subash M, built from a photograph rather than invented. Face
+proportions, hair volume, beard, build and colours are all measurements —
+`HERO_PIPELINE.md` has the table of which pixel each one came from. The one
+deliberate departure is the shirt: he wears black, and black on a runner seen
+against a night city is a silhouette with nothing in it, so the shirt keeps
+the photographed charcoal and the trim takes the one colour he actually wears
+— the red thread on his right wrist, which the model wears too.
+
 ## The runner's name
 
 The shirt carries a name, and so does the city. `HeroIdentity.shirtName`
@@ -275,6 +302,8 @@ keeps the sheds and the yards.
 
 ## Definition of done
 
-Tracked against the production bible's checklist in `QA_PLAN.md`. The one
-item that remains open by design: the hero uses the default identity config
-until a reference photo is supplied — see `HERO_PIPELINE.md`.
+Tracked against the production bible's checklist in `QA_PLAN.md`. The hero is
+no longer open: `DEFAULT_IDENTITY` is measured from a reference photograph, and
+`HERO_PIPELINE.md` records which pixel each number came from. Two values in it
+are still estimates, and are marked as such in the file — standing height and
+head depth, neither of which a head-and-shoulders photograph can give.

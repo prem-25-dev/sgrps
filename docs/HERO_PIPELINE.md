@@ -1,10 +1,47 @@
 # Hero pipeline — making the runner look like you
 
-No reference photo reached this build, so the hero uses `DEFAULT_IDENTITY`: a
-neutral adult build. Everything visual about the character is data, so
-matching a real person is a config edit, not a remodel.
+The runner is Subash M, and `DEFAULT_IDENTITY` is measured from a reference
+photograph rather than invented. Everything visual about the character is data,
+so matching a real person is a config edit, not a remodel — this page is both
+how that was done and how to do it again for somebody else.
 
-## What to change
+## How the shipped identity was measured
+
+Two photographs: a near-frontal shot on a plain background, and a
+three-quarter shot in overcast daylight. The plain background is worth asking
+for — it lets the head silhouette be extracted by threshold instead of by eye.
+
+Landmarks were located by pixel, not by judgement, because judgement is exactly
+what is unreliable here. Reading the face width off the frontal shot by eye gave
+a width-to-length ratio of 0.61, which would have produced a head far narrower
+than the person in the photograph; locating the pupils by luminance minimum and
+the chin by the shading break under the jaw gave 0.727, and the two disagreed
+because the widest part of the face is above the cheekbone and under the hair,
+where there is nothing obvious to point at.
+
+The measurements that fixed the model, and what each came from:
+
+| Value | Measured from |
+|---|---|
+| Head length 355 px | Pupils at y 351, chin at 535; the eye line is the head's vertical midpoint, so the crown is the same distance above it |
+| `widthRatio` 0.727 | 258 px across the cheekbones against those 355 |
+| `eyeSpacing` 0.438 | Pupils 113 px apart (x 631 and 744) against the same 258 |
+| `jawTaper` 0.62 | Jaw 174 px against 258 px bizygomatic |
+| `noseLength` 0.56 | Brow 338 px to nose base 443 px: 0.30 of head length |
+| `hair.volume` 0.049 | 75 px of hair above the crown, 0.21 of head length |
+| Skin, hair, lip colours | Sampled and averaged across both exposures |
+
+Two values a head-and-shoulders photograph cannot give are marked as estimates
+in the file: standing height, which needs a full-length frame or a scale
+reference, and `depthRatio`, which needs a profile.
+
+One deliberate departure from the reference. He wears a black polo in both
+shots, and the shirt keeps that charcoal — but worn flat it would lose the
+runner against every night zone in the game, so the trim takes the one colour
+he actually wears, the red thread on his right wrist. `outfit.band` puts that
+thread on the model, on the correct wrist.
+
+## Doing this for somebody else
 
 Open `src/assets/HeroIdentity.ts`. Every number is a measurement you can read
 off a photograph.

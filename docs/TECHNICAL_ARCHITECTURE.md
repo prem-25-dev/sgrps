@@ -98,7 +98,23 @@ images once at load.
   cutoff (stops weight smearing across joints).
 - LOD0 21,056 tris / LOD1 8,160 / LOD2 3,480, swapped by camera distance.
 - Everything visual is driven by `HeroIdentity` — proportions, face shape,
-  hair, outfit, colours — so matching a real person is a config change.
+  hair, outfit, colours — so matching a real person is a config change. The
+  shipped identity is measured from a reference photograph; `HERO_PIPELINE.md`
+  records which pixel each number came from.
+
+The head is a displaced sphere with the face features as separate meshes over
+it, and both halves of that arrangement have to agree about where the skin is.
+`headSurface` is not the nominal ellipsoid — it moves with the brow ridge, the
+cheekbones, the temples and the jaw taper — so features are seated by querying
+it through `frontSurfacePoint` rather than against a fraction of the head's
+half-depth. Placing them against the ellipsoid instead buried the lips 12 mm
+inside the skin and the eyes 18 mm, which went unnoticed for as long as the
+shell in front of them was wound inside out and therefore not drawn.
+
+`test:geometry` holds both ends of that: every patch `headPatch` builds must
+wind outward, calibrated against three.js's own primitives so a sign error in
+the measure cannot pass an inverted head, and each face feature must be the
+first thing a ray from the front meets at its own place on the face.
 
 ## Animation
 
@@ -110,7 +126,11 @@ Clips are **functions of phase**, not baked keyframes:
 - Jump clips are driven by real airtime, so the arc always matches the physics.
 - Additive layers ride on top: lane-change lean, breathing, head levelling.
 - A foot-contact pass lifts the pelvis so the lower foot never penetrates the
-  deck.
+  deck. The lift is held near its recent peak rather than tracking the
+  instantaneous penetration: the clip drives a toe up to 79 mm through the
+  deck at each strike, and following that saw-tooth was hoisting the whole body
+  twice per stride. Held, the correction is nearly a constant offset and adds
+  no motion of its own, while still rising instantly so a foot cannot sink.
 
 `PlayerAnimator` owns a small state machine with priorities and crossfades.
 Poses are flat `Float32Array` quaternion buffers, so blending allocates nothing.
@@ -122,6 +142,11 @@ space at the ground speed. The authored cadences alone gave 77–80% of that, so
 `npm run test:animation` samples the toe through the contact window at six
 speeds and fails if it drifts either side, so a future gait edit cannot
 quietly reintroduce the skate.
+
+Smoothness has a number too, and it is the third difference of pelvis height
+through a steady run: a corner in the curve shows there and nowhere else. At
+14 m/s it reads 6,057 m/s³, against 28,960 when the foot pass tracked the
+instantaneous penetration and 569 with the pass switched off entirely.
 
 ## The chaser
 

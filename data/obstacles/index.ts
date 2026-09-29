@@ -12,6 +12,29 @@ import { ObstacleDef } from '../../src/core/Types';
  *   ground   - sits on the deck, top between 0.85 and 1.25  -> jump or dodge
  *   overhead - hangs with its underside at 1.0 or above     -> slide or dodge
  *   full     - blocks the whole lane                        -> dodge only
+ *
+ * The `full` heights are tied to the jump, not chosen for their own sake. A
+ * wall is only dodge-only while the runner cannot get over it, and where that
+ * line falls is set by `CFG.jump`: measured against the solver, a wall stops
+ * being jumpable at any speed at about 0.96 of the jump peak. At a 2.70 m peak
+ * that put the line at 2.60 m, which is exactly where these obstacles sat —
+ * the category had no margin at all in it.
+ *
+ * So raising the jump to a 3.34 m peak raised these with it, by the same
+ * factor, keeping each one's relationship to the ceiling:
+ *
+ *   OBS_FencePanel_01   2.40 -> 2.97   the low one; jumpable at pace, as before
+ *   OBS_SignalBox_01    2.60 -> 3.22   dodge only
+ *   OBS_TallBarrier_01  2.70 -> 3.34   dodge only
+ *   OBS_Wall_01         3.00 -> 3.71   dodge only, the tallest
+ *
+ * OBS_Container_01 deliberately did not move. It is in this category but it is
+ * standable: it is the platform the player is meant to land on, and 2.55 m is
+ * a height a 3.34 m jump still mounts comfortably.
+ *
+ * Changing `CFG.jump` again means revisiting these four, and `test:validator`
+ * holds the line: it asserts a wall of each height is unjumpable at every
+ * speed the game reaches, which fails if either side moves alone.
  */
 export const OBSTACLE_DEFS: ObstacleDef[] = [
   // --- Ground: jumpable -----------------------------------------------
@@ -37,11 +60,11 @@ export const OBSTACLE_DEFS: ObstacleDef[] = [
   { id: 'OBS_ScaffoldBeam_01', category: 'overhead', difficulty: 0.45, collision: 'box', requiredActions: ['slide', 'laneChange'], width: 2.4, height: 0.6, depth: 1.2, yOffset: 1.42, mesh: 'scaffoldBeam', sfx: 'SFX_ImpactMetal' },
 
   // --- Full height: lane change only ----------------------------------
-  { id: 'OBS_TallBarrier_01', category: 'full', difficulty: 0.3, collision: 'box', requiredActions: ['laneChange'], width: 2.2, height: 2.7, depth: 0.4, yOffset: 1.35, mesh: 'tallBarrier', sfx: 'SFX_ImpactMetal' },
+  { id: 'OBS_TallBarrier_01', category: 'full', difficulty: 0.3, collision: 'box', requiredActions: ['laneChange'], width: 2.2, height: 3.34, depth: 0.4, yOffset: 1.67, mesh: 'tallBarrier', sfx: 'SFX_ImpactMetal' },
   { id: 'OBS_Container_01', category: 'full', difficulty: 0.35, collision: 'box', requiredActions: ['laneChange'], width: 2.3, height: 2.55, depth: 2.4, yOffset: 1.275, mesh: 'container', sfx: 'SFX_ImpactMetal', standable: true },
-  { id: 'OBS_FencePanel_01', category: 'full', difficulty: 0.25, collision: 'box', requiredActions: ['laneChange'], width: 2.3, height: 2.4, depth: 0.16, yOffset: 1.2, mesh: 'fencePanel', sfx: 'SFX_ImpactMetal' },
-  { id: 'OBS_SignalBox_01', category: 'full', difficulty: 0.4, collision: 'box', requiredActions: ['laneChange'], width: 2.0, height: 2.6, depth: 1.4, yOffset: 1.3, mesh: 'signalBox', sfx: 'SFX_ImpactStone' },
-  { id: 'OBS_Wall_01', category: 'full', difficulty: 0.5, collision: 'box', requiredActions: ['laneChange'], width: 2.35, height: 3.0, depth: 0.6, yOffset: 1.5, mesh: 'wall', sfx: 'SFX_ImpactStone' },
+  { id: 'OBS_FencePanel_01', category: 'full', difficulty: 0.25, collision: 'box', requiredActions: ['laneChange'], width: 2.3, height: 2.97, depth: 0.16, yOffset: 1.485, mesh: 'fencePanel', sfx: 'SFX_ImpactMetal' },
+  { id: 'OBS_SignalBox_01', category: 'full', difficulty: 0.4, collision: 'box', requiredActions: ['laneChange'], width: 2.0, height: 3.22, depth: 1.4, yOffset: 1.61, mesh: 'signalBox', sfx: 'SFX_ImpactStone' },
+  { id: 'OBS_Wall_01', category: 'full', difficulty: 0.5, collision: 'box', requiredActions: ['laneChange'], width: 2.35, height: 3.71, depth: 0.6, yOffset: 1.855, mesh: 'wall', sfx: 'SFX_ImpactStone' },
 
   // --- Dynamic ---------------------------------------------------------
   { id: 'OBS_MovingTrolley_01', category: 'dynamic', difficulty: 0.55, collision: 'box', requiredActions: ['jump', 'laneChange'], width: 1.5, height: 1.05, depth: 1.6, yOffset: 0.525, mesh: 'trolley', sfx: 'SFX_ImpactMetal', vfx: 'VFX_Sparks' },

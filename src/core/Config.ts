@@ -24,10 +24,22 @@ export const CFG = {
   },
 
   jump: {
-    gravity: -60,
-    // Peak 2.70 m: high enough to land on a container (2.55) and, from a
-    // ramp, on a train roof. Air time 0.60 s.
-    velocity: 18.0,
+    // Peak 3.34 m, air time 0.64 s.
+    //
+    // Raised from a 2.70 m peak on 0.60 s of air. Height and air time are not
+    // independent — from v and g, peak is v^2/2g and air time 2v/g — so simply
+    // winding the launch speed up would have bought the extra height with a
+    // longer float, and at 31 m/s top speed the runner already covers 18.6 m
+    // of track in one jump. Raising gravity alongside it keeps the arc about
+    // as long as it was and spends the change on height instead: a quarter
+    // more clearance, with the fall still arriving quickly.
+    //
+    // Everything downstream reads these two numbers rather than copies of the
+    // result: JUMP_PEAK and JUMP_AIR_TIME are derived below and the fairness
+    // solver plans with them, so a change here is re-proved survivable by
+    // `npm run test:fairness` rather than re-tuned by hand.
+    gravity: -66,
+    velocity: 21.0,
     /** Grace period after leaving the ground during which a jump still fires. */
     coyoteTime: 0.11,
     /** How early an input is remembered before landing. */

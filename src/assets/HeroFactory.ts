@@ -278,6 +278,30 @@ function headSurface(id: HeroIdentity, theta: number, phi: number, scale: number
   return new THREE.Vector3(x, y, z);
 }
 
+/**
+ * The point on the front of the head shell at a given face position.
+ *
+ * Everything on a face — eyes, brows, nose, lips — has to sit on the skin,
+ * and the skin is not the nominal ellipsoid: `headSurface` moves it with the
+ * brow ridge, the cheekbones, the temples and the jaw taper, and the ellipsoid
+ * itself is only at its full depth `rz` on the centre line at eye height.
+ *
+ * Placing features against `rz` instead put every one of them *inside* the
+ * head: 12 mm for the lips, 18 mm for the eyes, 29 mm for the tongue. They
+ * were visible anyway, because the shell was wound inside out and its front
+ * was being culled, so the face was really a set of loose parts floating in
+ * front of the hollow back of the skull. Fixing the winding buried them, which
+ * is how the placement bug surfaced at all.
+ */
+function frontSurfacePoint(id: HeroIdentity, scale: number, x: number, y: number): THREE.Vector3 {
+  const half = (id.face.length / 2) * scale;
+  const rx = half * id.face.widthRatio;
+  const phi = Math.acos(Math.max(-0.9995, Math.min(0.9995, y / half)));
+  const ring = Math.max(1e-6, Math.sin(phi));
+  const theta = Math.asin(Math.max(-0.9995, Math.min(0.9995, x / (ring * rx))));
+  return headSurface(id, theta, phi, scale);
+}
+
 /** Grid patch on the head surface, used for the skull, hair cap and stubble. */
 function headPatch(
   id: HeroIdentity,
@@ -305,7 +329,16 @@ function headPatch(
     for (let iu = 0; iu < uSteps; iu++) {
       const a = iv * (uSteps + 1) + iu;
       const b = a + uSteps + 1;
-      indices.push(a, b, a + 1, b, b + 1, a + 1);
+      // v runs down the head and u around it, so (a -> a+1 -> b) is the
+      // counter-clockwise order seen from outside. Emitting (a, b, a+1)
+      // instead turned every patch this function builds inside out: the
+      // skull, the stubble, and the hair cap and its rim. A convex shell
+      // seen from within still reads as a head from the front, with the
+      // eyes, nose and lips drawn as separate meshes over it, so the fault
+      // survived every screenshot taken from the front. From behind it is
+      // unmistakable — the mouth shows through the back of the skull — and
+      // that is the view the player has for the whole game.
+      indices.push(a, a + 1, b, b, a + 1, b + 1);
     }
   }
   const geo = new THREE.BufferGeometry();
@@ -706,15 +739,21 @@ function buildFace(
   const eyeX = rx * f.eyeSpacing;
   const eyeY = half * 0.09;
   const eyeR = half * 0.086 * (0.78 + f.eyeSize * 0.42);
-  const eyeZ = -rz * 0.79;
+  // The eyeball is seated so its cornea stands just proud of the skin at the
+  // socket, which is where the lids can then clip it. `PROUD` is the standoff
+  // in reference metres; at this head size it is a shade over a millimetre.
+  const PROUD = 0.0015 * scale;
+  const socketZ = frontSurfacePoint(id, scale, eyeX, eyeY).z;
+  const eyeCentreZ = socketZ + eyeR - PROUD;
 
   for (const side of [1, -1]) {
     const ball = new THREE.Mesh(new THREE.SphereGeometry(eyeR, seg, seg), mats.eyeWhite);
-    ball.position.set(eyeX * side, eyeY, eyeZ + eyeR * 0.86);
+    ball.name = side > 0 ? 'CHR_Hero_Eye_L' : 'CHR_Hero_Eye_R';
+    ball.position.set(eyeX * side, eyeY, eyeCentreZ);
     parent.add(ball);
 
     const iris = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 0.52, seg, Math.max(6, seg - 4)), mats.iris);
-    iris.position.set(eyeX * side, eyeY, eyeZ + eyeR * 0.86 - eyeR * 0.74);
+    iris.position.set(eyeX * side, eyeY, eyeCentreZ - eyeR * 0.74);
     iris.scale.set(1, 1, 0.55);
     parent.add(iris);
 
@@ -724,6 +763,7 @@ function buildFace(
         new THREE.SphereGeometry(eyeR * 1.1, seg, seg, 0, Math.PI * 2, 0, Math.PI * 0.42),
         mats.skin,
       );
+      lid.name = side > 0 ? 'CHR_Hero_EyeLid_L' : 'CHR_Hero_EyeLid_R';
       lid.position.copy(ball.position);
       lid.rotation.x = -0.35;
       parent.add(lid);
@@ -732,6 +772,7 @@ function buildFace(
         new THREE.SphereGeometry(eyeR * 1.08, seg, seg, 0, Math.PI * 2, Math.PI * 0.66, Math.PI * 0.34),
         mats.skin,
       );
+      lowerLid.name = side > 0 ? 'CHR_Hero_EyeLid_L' : 'CHR_Hero_EyeLid_R';
       lowerLid.position.copy(ball.position);
       lowerLid.rotation.x = 0.28;
       parent.add(lowerLid);
@@ -741,7 +782,8 @@ function buildFace(
         new THREE.TorusGeometry(eyeR * 1.18, eyeR * 0.17, 5, 10, Math.PI * 0.72),
         mats.brow,
       );
-      brow.position.set(eyeX * side, eyeY + eyeR * 1.5, eyeZ + eyeR * 0.2);
+      const browY = eyeY + eyeR * 1.5;
+      brow.position.set(eyeX * side, browY, frontSurfacePoint(id, scale, eyeX, browY).z + eyeR * 0.28);
       brow.rotation.set(0.22, 0, side > 0 ? 0.16 : -0.16);
       brow.scale.set(1, 0.7, 0.7);
       parent.add(brow);
@@ -763,23 +805,34 @@ function buildFace(
     { y: noseTipY, w: 0.26, d: 0.13, z: -rz * 0.99 },
     { y: noseTipY - half * 0.05, w: 0.30, d: 0.08, z: -rz * 0.88 },
   ].map((n) => ({
-    c: new THREE.Vector3(0, n.y, n.z - rz * f.noseBridge * 0.04),
+    // The authored z is an inset from the nominal ellipsoid; re-seat it on the
+    // skin at that height so the bridge starts flush and the tip protrudes.
+    c: new THREE.Vector3(
+      0,
+      n.y,
+      frontSurfacePoint(id, scale, 0, n.y).z + (n.z + rz) - rz * f.noseBridge * 0.04,
+    ),
     u: new THREE.Vector3(rx * n.w * (0.75 + f.noseWidth * 0.5), 0, 0),
     v: new THREE.Vector3(0, 0, rz * n.d),
     shape: bodyProfile(2.6),
   }));
   const nose = new THREE.Mesh(sweep(noseRings, { radialSegments: seg, capStart: true, capEnd: true }), mats.skin);
+  nose.name = 'CHR_Hero_Nose';
   parent.add(nose);
 
   // Lips.
   const lipY = -half * 0.42;
-  const lipZ = -rz * 0.78;
+  // Seated on the skin rather than on the ellipsoid: the mouth sits below the
+  // cheekbones where the jaw taper has already pulled the surface in.
+  const lipZ = frontSurfacePoint(id, scale, 0, lipY).z + half * 0.03;
   const lipScale = 0.75 + f.lips * 0.5;
   const upper = new THREE.Mesh(new THREE.SphereGeometry(half * 0.105 * lipScale, seg, Math.max(5, seg - 6)), mats.mouth);
+  upper.name = 'CHR_Hero_Lip_Upper';
   upper.position.set(0, lipY + half * 0.028, lipZ + half * 0.03);
   upper.scale.set(2.1, 0.34, 0.42);
   parent.add(upper);
   const lower = new THREE.Mesh(new THREE.SphereGeometry(half * 0.105 * lipScale, seg, Math.max(5, seg - 6)), mats.mouth);
+  lower.name = 'CHR_Hero_Lip_Lower';
   lower.position.set(0, lipY - half * 0.038, lipZ + half * 0.035);
   lower.scale.set(1.85, 0.4, 0.46);
   parent.add(lower);
@@ -849,8 +902,14 @@ function buildHair(
     hairline,
     (theta, v) => {
       const taper = Math.min(1, (1 - v) * 3.2);
-      const curl = h.style === 'curly' ? Math.sin(theta * 9) * Math.sin(v * 11) * 0.35 : 0;
-      return volume * (0.35 + taper * 0.85 + curl);
+      const curl = h.style === 'curly' ? Math.sin(theta * 7) * Math.sin(v * 8 + theta) * 0.22 : 0;
+      // The mass has to come back down to the skin at the hairline. Leaving a
+      // constant 0.35 of the volume standing there held the whole edge off the
+      // head by a fixed amount, which at any real hair volume reads as the
+      // brim of a cap rather than as hair: a hard line all the way round, with
+      // the scalp visible under it from behind.
+      const meetsSkin = Math.min(1, (1 - v) * 6);
+      return volume * (0.28 + taper * 0.9 + curl) * meetsSkin;
     },
   );
   const capMesh = new THREE.Mesh(cap, mats.hair);
@@ -858,14 +917,19 @@ function buildHair(
   parent.add(capMesh);
 
   // A short inward rim closes the shell so it never reads as paper thin.
+  //
+  // It used to stand 0.6 of the volume off the skull at the hairline, which
+  // was sized for a cap that stopped short of the head. Now that the cap comes
+  // down to the skin, that much rim stood out past it as a flange running
+  // round the head at ear level — the last of the cap look.
   const rim = headPatch(
     id,
     scale,
     q.faceDetail === 'minimal' ? 12 : 24,
     2,
     hairline,
-    (theta) => hairline(theta) + 0.1,
-    (_theta, v) => volume * (1 - v) * 0.6,
+    (theta) => hairline(theta) + 0.08,
+    (_theta, v) => volume * (1 - v) * 0.12,
   );
   parent.add(new THREE.Mesh(rim, mats.hair));
 
@@ -874,12 +938,14 @@ function buildHair(
     const theta = (i / Math.max(1, q.hairStrands)) * Math.PI * 2;
     const phi = 0.35 + (i % 3) * 0.22;
     const base = headSurface(id, theta, phi, scale, volume * 0.7);
-    const tipPhi = phi + (h.style === 'curly' ? 0.14 : 0.34);
-    const tip = headSurface(id, theta + 0.1, tipPhi, scale, volume * (h.style === 'short' ? 0.9 : 1.25));
+    const tipPhi = phi + (h.style === 'curly' ? 0.2 : 0.34);
+    const tip = headSurface(id, theta + 0.1, tipPhi, scale, volume * (h.style === 'short' ? 0.9 : 1.08));
     const dir = tip.clone().sub(base);
     const rings: Ring[] = [0, 0.5, 1].map((t) => {
+      // Thinner clusters than the cap is thick, so they read as locks lying on
+      // the mass. Wider ones stood off it as separate faceted spikes.
       const c = base.clone().addScaledVector(dir, t);
-      const r = half * 0.042 * (1 - t * 0.8);
+      const r = half * 0.034 * (1 - t * 0.8);
       return { c, u: new THREE.Vector3(r, 0, 0), v: new THREE.Vector3(0, 0, r) };
     });
     parent.add(new THREE.Mesh(sweep(rings, { radialSegments: 5, capStart: true, capEnd: true }), mats.hair));
@@ -888,6 +954,17 @@ function buildHair(
 
 /** How far the print stands off the shirt, in reference metres. */
 const PRINT_CLEARANCE = 0.026;
+
+/**
+ * Whether the name is drawn mirrored into the print texture.
+ *
+ * It is one decision, not one per side: it follows from the direction `sweep`
+ * winds u around the body, which is the same ring for the chest and the back.
+ * Keeping it as a single constant is what stops the two sides disagreeing —
+ * see the note in `buildShirtPrint`, and `test:animation` for the geometry
+ * assertion that pins the winding this assumes.
+ */
+const MIRROR_PRINT = true;
 
 /**
  * The name printed on the shirt.
@@ -946,10 +1023,20 @@ function buildShirtPrint(id: HeroIdentity, rig: Rig, scale: number): void {
       while (fit() > boxW && px > 6) px *= 0.94;
       ctx.save();
       ctx.translate(size * centreU, rows * 0.5);
-      // u winds one way around the ring, so of the two sides of the body one
-      // is seen with u increasing to the right and the other with it
-      // increasing to the left. Without this the name on the back — the side
-      // the player looks at for the whole game — is printed backwards.
+      // Both prints mirror, and for the same reason. A label wrapped round a
+      // bottle reads correctly the whole way round, so there is no per-side
+      // flip to compensate for; what there is, is the direction `sweep` winds
+      // u. A ring point is `c + u*cos(a) + v*sin(a)` with u along +X and v
+      // along +Z, so increasing `a` runs +X -> +Z -> -X -> -Z. At the back
+      // (a = PI/2) the next step is toward -X, and a viewer behind the runner
+      // has +X on their right, so u increases to their left. At the chest
+      // (a = 3PI/2) the next step is toward +X, and a viewer in front has -X
+      // on their right — u increases to their left again. Text drawn
+      // left to right in u therefore comes out backwards on both sides.
+      //
+      // This used to be a per-print flag, true for the back and false for the
+      // chest, which is why the back read correctly and the chest read
+      // backwards in every three-quarter shot.
       if (mirror) ctx.scale(-1, 1);
       // Dark outline first, so the name survives on a pale shirt as well as
       // a dark one without needing to know which it is.
@@ -964,8 +1051,8 @@ function buildShirtPrint(id: HeroIdentity, rig: Rig, scale: number): void {
 
     // Kept inside the arc the camera can actually see: past about a quarter
     // of the circumference the print wraps onto the ribs and stops reading.
-    print(0.25, 0.26, 1, true);
-    print(0.75, 0.2, 0.78, false);
+    print(0.25, 0.26, 1, MIRROR_PRINT);
+    print(0.75, 0.2, 0.78, MIRROR_PRINT);
     ctx.restore();
   }, { transparent: true });
 

@@ -1572,10 +1572,200 @@ The whole episode is a good argument for screenshots: the suite was green
 through the first three of those, because none of them is visible to a test
 that asks whether a mesh exists.
 
+## A head that had been inside out all along
+
+The reference photograph arrived, and with it the first reason anyone had ever
+had to look at the runner from behind.
+
+`DEFAULT_IDENTITY` became a set of measurements instead of a neutral build —
+narrower face, more hair, a beard — and the first hero shot showed something
+that had nothing to do with any of that: **the mouth was visible through the
+back of the skull**. Eyes, lips and teeth, seen from behind, on the one view
+the player has for the entire game.
+
+The obvious readings were all wrong. The skull was not missing its back: the
+shell is built over the full sphere, phi from 0 to PI at every theta. Nothing
+was mispositioned: dumping the world position of all 35 head meshes put every
+feature at negative z, in front, where it belonged. Nothing had its depth test
+disabled, nothing carried a polygon offset, nothing was transparent, every
+`renderOrder` was 0. And the head bone's world forward was exactly (0, 0, -1),
+so the camera really was behind it.
+
+What settled it was making the shell double-sided at runtime and taking the
+same shot again. The back of the head came out clean — which cannot happen by
+adding faces to a surface that was already being drawn. The shell's *front*
+faces were not being drawn at that pixel, so what the camera was seeing was
+the inside of the front of the head.
+
+Measured offline, **0 of the head shell's 1768 triangles were wound outward**.
+`headPatch` emitted `(a, b, a+1)` where the grid's own parameterisation calls
+for `(a, a+1, b)`, so every patch it builds — the skull, the stubble, the hair
+cap and its rim — came out inside out. The hair cap had been forced to
+`DoubleSide` at some earlier point, which is the shape a workaround leaves
+behind: it made the symptom go away on the one mesh somebody happened to be
+looking at.
+
+The measure itself needed a control before any of that was worth believing,
+because a sign error in it would report a perfectly good head as inverted. It
+is anchored to `SphereGeometry` and `BoxGeometry`, which three.js builds
+itself and which score 100%, and that calibration is now the first assertion
+in the suite.
+
+**Why it survived this long.** A convex shell seen from inside still reads as
+a head from the front: you see the concave inside of the back of the skull,
+and the eyes, nose and lips are separate meshes floating in front of it. Every
+screenshot ever taken to judge the face was taken from the front, where the
+fault is invisible. `test:hero` checks triangle budgets, part bounds and skin
+weights — all of which an inside-out head passes.
+
+### And the face was inside the head
+
+Fixing the winding made the whole face disappear.
+
+The features had been placed against `rz`, the nominal half-depth of the head
+ellipsoid, at factors between 0.78 and 0.99 — comfortably inside the real skin
+surface, which `headSurface` moves with the brow ridge, the cheekbones, the
+temples and the jaw taper, and which is only at its full depth on the centre
+line at eye height. Measured from the shell: the lips sat 12 mm inside it, the
+eyes 18 mm, the tongue 29 mm. They had only ever been visible because the
+surface in front of them was not being drawn.
+
+So the second fault was hiding inside the first, and could not have been found
+while the first was still there. Features are now seated by querying the shell
+— `frontSurfacePoint` inverts the surface for a given face position — and the
+eyeball is placed so its cornea stands about a millimetre proud of the socket,
+which is where the lids can clip it.
+
+### The guard that passed on a buried eye
+
+The first version of the new test cast a ray at each feature from in front and
+asserted the first thing hit was not the shell. It passed. It also passed with
+the seating reverted and every feature back inside the head.
+
+Two reasons, both worth recording. The stubble layer covers the whole lower
+face, so at the lips the first hit was the beard — not the shell, and the
+assertion was satisfied. And `Raycaster` does not skip hidden objects, while
+the hero carries all three LODs at once with two switched off, so the casts
+were hitting low-detail head shells that the renderer never draws.
+
+It now walks the ancestry of each hit and ignores anything that is not
+visible, and each feature names the parts allowed to be in front of it — an
+eyelid may be, the shell may not. Reverting the seating then fails three
+assertions, and reverting the winding fails the outward-facing one.
+
+## The name was on backwards, on the side nobody had photographed
+
+The same set of shots caught the chest print reading as a mirror image.
+
+The mirroring had been reasoned about once and written down as a comment: u
+winds one way around the ring, so of the two sides of the body one is seen
+with u increasing to the right and the other with it increasing to the left,
+and therefore the back mirrors and the chest does not. That is wrong, and the
+way it is wrong is instructive — a label wrapped round a bottle reads correctly
+all the way round. There is no per-side flip.
+
+What there is, is the direction the sweep winds. A ring point is
+`c + u*cos(a) + v*sin(a)` with u along +X and v along +Z, so increasing `a`
+runs +X, +Z, -X, -Z. At the back the next step is toward -X, and a viewer
+behind the runner has +X on their right, so u increases to their left. At the
+chest the next step is toward +X, and a viewer in front has -X on their right —
+u increases to their left again. **Both sides mirror.** One flag, not two, and
+it is now one constant used twice so they cannot disagree.
+
+The existing test checked that the print exists, stands proud of the shirt,
+sits across the shoulder blades and carries a texture. All four were true of a
+print with the name written backwards. The new assertion pins the geometric
+fact the flag rests on rather than the flag itself: it walks a swept ring and
+checks which way x moves as u increases, at the back and at the chest. Reverse
+the winding of `sweep` and it fails.
+
+## The run was rough, and the foot pass was doing it
+
+"Make the run smooth" is not a measurable request until you pick a number. The
+one that matches what an eye notices is the third difference of pelvis height —
+a corner in the curve shows there and nowhere else.
+
+Sampled through a steady run, it came to 28,960 m/s³ at 14 m/s. With the foot
+contact pass switched off, the same run measured 569. **The pass meant to make
+the runner's feet sit properly on the ground was responsible for a factor of
+fifty-one.**
+
+The reason is in what it was correcting. The pass lifts the pelvis until the
+lowest foot rests on the deck, and the locomotion clip drives a toe as much as
+**79 mm** through the deck at each strike. Applied as an instantaneous
+correction, that is a saw-tooth: the body was being hoisted and dropped by up
+to eight centimetres, twice per stride.
+
+Two attempts missed before the measurement pointed at the right thing. Smoothing
+the release alone moved the mean but left the peak untouched, because the peak is
+in the rise. Replacing the hard `min` over the four foot bones with a soft
+minimum, and the clamp at zero with a softplus — both real corners, both
+smoothed in the safe direction — moved the peak by at most 2 m/s³ out of
+6,057, and by nothing at all at 14 m/s. They were taken back out again:
+correct, and not worth the two functions. Tracing
+the lift frame by frame showed what the summary statistics had hidden: it jumps
+from 2 mm to 70 mm between two frames, once per cycle. Neither corner mattered
+next to that cliff.
+
+What works is holding near the recent peak instead of tracking the instant.
+The penetration is periodic, so a held value is almost a constant offset, and a
+constant offset adds no motion at all. The settle rate was swept against three
+things at once — peak jerk, the deepest a foot sinks, and the worst a planted
+foot floats while the runner decelerates from 30 m/s to 6:
+
+    rate 26   -> 28,770 m/s³   sink 0.00 mm   float 0.0 mm
+    rate  3   -> 15,060        sink 0.00      float 0.0
+    rate  1   ->  7,982        sink 0.00      float 0.0
+    rate  0.6 ->  6,057        sink 0.00      float 0.0
+    rate  0.25 -> 3,791        sink 0.00      float 0.8
+
+Nothing sinks at any rate, because the lift still rises instantly to whatever
+it finds. The measured result at the chosen 0.6:
+
+| speed | before | after |
+|---|---|---|
+| 8 m/s | 14,333 | 5,142 |
+| 14 m/s | 28,960 | 6,057 |
+| 22 m/s | 48,461 | 8,959 |
+| 30 m/s | 61,380 | 10,943 |
+
+Mean jerk at 14 m/s fell from 4,936 to 716.
+
+## Raising the jump would have deleted the dodge
+
+The jump went from a 2.70 m peak to 3.34 m. One assertion failed, and it was
+the interesting one: a wall across all three lanes at 2.7 m became survivable.
+
+The fixture was a restatement of the constant — 2.7 m was the jump peak of the
+day — so the first instinct was to move the number and carry on. Checking what
+it stood for was what mattered. Swept against the solver, a wall stops being
+jumpable at any speed at about 0.96 of the peak. At the old peak that line sat
+at 2.60 m, and the `full` category — the obstacles whose whole job is that you
+have to go round them — sat at 2.40, 2.55, 2.60, 2.70 and 3.00. **The category
+had no margin in it at all.** Every one of them would have become jumpable, and
+the game would have lost the lane change as a forced move.
+
+So the jump and those walls are one decision, not two, and the walls were
+scaled by the same factor. `test:fairness` now reads both sides out of the data
+and asserts each dodge-only archetype is unjumpable at every speed the game
+reaches — and that the container in the same category, which is the platform
+the rooftop routes start from, can still be jumped onto. Raising the jump
+without moving the walls fails three of those assertions.
+
+The differential sweep moved too, and this one was left alone after checking:
+routes needing their take-off nudged went from 80 to 84 of 420. A longer
+flight covers more ground, so a planning grid of fixed pitch describes it less
+exactly. The assertions that matter did not move — every solver-approved route
+still flies through the real physics, the median route still flies untouched —
+and the windows stayed between 3.7 and 24.8 frames wide. That is the grid's
+resolution showing, not the solver disagreeing with the game.
+
 ## Known limitations
 
-- The hero's identity is the default config; supply a reference photo and
-  fill in `HeroIdentity` to match a real person (see `HERO_PIPELINE.md`).
+- The hero is measured from a reference photograph (see `HERO_PIPELINE.md`),
+  but two of its numbers are estimates a head-and-shoulders shot cannot give:
+  standing height, which needs a full-length frame or a scale reference, and
+  head depth, which needs a profile.
 - LOD1 is 8.2k triangles, slightly under the bible's 10k–30k suggestion. It
   was left there deliberately: the silhouette holds at 26 m+ and the saving is
   real. LOD0 (21k) and LOD2 (3.5k) are both inside their bands.

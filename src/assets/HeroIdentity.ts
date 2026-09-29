@@ -2,11 +2,11 @@
  * The hero is the one asset that makes this game *yours*, so every visual
  * decision about them is data, not hard-coded geometry.
  *
- * Supply an identity reference photo by filling in this table: the numbers are
- * plain measurements a person can read off a photograph (face width relative
- * to height, jaw taper, hair silhouette, outfit colours). `docs/HERO_PIPELINE.md`
- * walks through doing that. Until a reference is provided the DEFAULT_IDENTITY
- * below is used, which is a neutral adult male build.
+ * The numbers are plain measurements a person can read off a photograph (face
+ * width relative to height, jaw taper, hair silhouette, outfit colours).
+ * `docs/HERO_PIPELINE.md` walks through doing that, and DEFAULT_IDENTITY below
+ * is the result of doing it: it is measured from a reference photograph rather
+ * than invented, and every value carries the measurement it came from.
  */
 export interface HeroIdentity {
   name: string;
@@ -94,58 +94,103 @@ export interface HeroIdentity {
   };
 }
 
+/**
+ * Measured from a reference photograph — a front-on shot on a plain
+ * background, plus a three-quarter shot in daylight.
+ *
+ * Where a number could be measured it was, from landmark pixel positions
+ * rather than by eye: pupils, lip line, nose base, chin and the head
+ * silhouette were located by luminance, and the ratios below are quoted with
+ * the pixel measurement they came from so a later pass can disagree with the
+ * arithmetic instead of the taste. The two numbers a photograph of a head and
+ * shoulders genuinely cannot give — standing height and head depth — are
+ * marked as estimates.
+ */
 export const DEFAULT_IDENTITY: HeroIdentity = {
-  name: 'Runner',
-  height: 1.78,
-  build: 0.42,
-  shoulderRatio: 0.244,
-  hipRatio: 0.185,
+  name: 'Subash M',
+  /** Estimated: no full-length frame and no scale reference in either shot. */
+  height: 1.75,
+  /** Lean. Drives torso and limb girth. */
+  build: 0.26,
+  /** Narrow, sloping shoulders; the trapezius sits close in to the neck. */
+  shoulderRatio: 0.232,
+  hipRatio: 0.178,
   shirtName: 'Subash M',
 
   face: {
-    length: 0.232,
-    widthRatio: 0.76,
+    // Eye line 351 px, chin 535 px, so half the head is 184 px and the crown
+    // lands at 167; cross-checked against chin-to-hairline x1.35, which gives
+    // 331 px and is biased short by a low fringe. Head length taken as 355 px.
+    /** Estimated from the ratios below at adult scale. */
+    length: 0.234,
+    /** 258 px across the cheekbones / 355 px of head length. */
+    widthRatio: 0.727,
+    /** Estimated: neither shot is a profile. */
     depthRatio: 0.86,
-    jawTaper: 0.52,
-    cheekbone: 0.55,
-    brow: 0.5,
-    noseLength: 0.5,
-    noseBridge: 0.5,
-    noseWidth: 0.5,
-    lips: 0.5,
-    eyeSpacing: 0.46,
+    /** Jaw 174 px against 258 px bizygomatic: tapered, not pointed. */
+    jawTaper: 0.62,
+    /** Lean face, cheekbones read clearly under a flat overcast light. */
+    cheekbone: 0.6,
+    /** Strong, low-set brows. */
+    brow: 0.62,
+    /** Brow 338 px to nose base 443 px: 0.30 of head length, on the long side. */
+    noseLength: 0.56,
+    noseBridge: 0.56,
+    /** Nose base shadow spans 656-702 px, about 0.22 of face width. */
+    noseWidth: 0.47,
+    /** Full lower lip, medium upper. */
+    lips: 0.55,
+    /** Pupils 631 and 744 px: 113 px across 258 px of face. */
+    eyeSpacing: 0.438,
     eyeSize: 0.5,
-    ear: 0.5,
+    ear: 0.46,
   },
 
   colors: {
-    skin: 0xd99a6f,
-    skinShadow: 0xa06b45,
-    hair: 0x191310,
-    brow: 0x1a1310,
-    iris: 0x3a2415,
-    lips: 0x9b5a52,
-    shirt: 0x1c6f86,
-    shirtAccent: 0x51fff0,
-    pants: 0x232a38,
+    // Sampled from both shots and averaged: the daylight frame reads
+    // #996f58 on the cheek and the studio frame #ba886e, and the albedo the
+    // game lights sits between the two exposures rather than at either.
+    skin: 0xaa7c63,
+    /** Neck in shadow, #835a3f, deepened: the reference light was flat. */
+    skinShadow: 0x7e563e,
+    /** Hair core #322e2c in daylight — near black, neutral, not blue. */
+    hair: 0x27231f,
+    brow: 0x2c251f,
+    iris: 0x3a2a1d,
+    /** Lip mid-tone below the specular highlight, #96605a. */
+    lips: 0x9d6259,
+    // He wears a black zip-neck polo in both shots, #222122. Worn flat it
+    // would lose the runner against every night zone in the game, so the
+    // shirt keeps the photographed charcoal and the trim takes the one
+    // colour he actually wears: the red thread on his right wrist.
+    shirt: 0x24232a,
+    shirtAccent: 0xd8402f,
+    pants: 0x2a2f3a,
     shoeBody: 0xf2f2ee,
     shoeSole: 0x1d2128,
-    accent: 0xff3ea8,
+    accent: 0xd8402f,
   },
 
   hair: {
-    style: 'medium',
-    volume: 0.032,
-    fringe: 0.55,
-    sideburn: 0.45,
-    stubble: 0.25,
+    /** Thick and wavy, clumped rather than smooth. */
+    style: 'curly',
+    /** 75 px of hair above a 355 px head: 0.21 of head length. */
+    volume: 0.049,
+    /** Low, heavy fringe; little forehead shows. */
+    fringe: 0.3,
+    /** Sideburns run down into the beard. */
+    sideburn: 0.6,
+    /** A real beard along the jaw and a moustache, but thin. */
+    stubble: 0.6,
   },
 
   outfit: {
     top: 'tee',
     bottom: 'joggers',
-    watch: true,
-    band: false,
+    /** No watch in either shot. */
+    watch: false,
+    /** The red thread on the right wrist. */
+    band: true,
     backpack: false,
   },
 };

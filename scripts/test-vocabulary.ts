@@ -42,7 +42,7 @@ const JUMP_PEAK = (CFG.jump.velocity * CFG.jump.velocity) / (2 * -CFG.jump.gravi
 
 check('the archetype count the documents quote is right', OBSTACLE_DEFS.length === 33,
   `${OBSTACLE_DEFS.length}`);
-check(`the jump peak is the documented ${JUMP_PEAK.toFixed(2)} m`, Math.abs(JUMP_PEAK - 2.70) < 1e-9,
+check(`the jump peak is the documented ${JUMP_PEAK.toFixed(2)} m`, Math.abs(JUMP_PEAK - 3.341) < 5e-4,
   `${JUMP_PEAK}`);
 
 // -------------------------------------------------------------- ground

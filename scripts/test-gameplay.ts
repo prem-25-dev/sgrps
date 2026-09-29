@@ -1,5 +1,5 @@
 import { ActiveObstacle, CollisionSystem, HitResult } from '../src/core/CollisionSystem';
-import { CFG, laneToX } from '../src/core/Config';
+import { CFG, laneToX, JUMP_PEAK } from '../src/core/Config';
 import { OBSTACLE_BY_ID } from '../data/obstacles';
 import { Harness, makeHarness } from './harness';
 
@@ -60,12 +60,18 @@ console.log('Movement and physics:');
   h.dispose();
 }
 {
-  // Jump apex must match the configured 2.70 m, and the player must land.
+  // The apex the integrator actually reaches must match the closed form the
+  // rest of the game plans with. Written against a literal 2.70 this said
+  // nothing about that agreement — it only restated the constant of the day,
+  // and changing the jump made it fail without telling anyone which side was
+  // wrong. JUMP_PEAK is v^2/2g straight from CFG, so this now compares the
+  // simulation against the formula the fairness solver uses.
   const h = makeHarness();
   let peak = 0;
   h.key('Space');
   h.step(1.0, () => { peak = Math.max(peak, h.player.state.y); });
-  check('jump reaches its designed apex', Math.abs(peak - 2.70) < 0.12, `peak ${peak.toFixed(2)} m`);
+  check('jump reaches the apex the solver plans with', Math.abs(peak - JUMP_PEAK) < 0.12,
+    `peak ${peak.toFixed(2)} m against a predicted ${JUMP_PEAK.toFixed(2)} m`);
   check('the player lands again', h.player.state.grounded && h.player.state.y < 0.01, `y ${h.player.state.y.toFixed(3)}`);
   h.dispose();
 }

@@ -112,8 +112,10 @@ CI runs all of these on every push and pull request
 ## Making the hero you
 
 The character is driven entirely by `src/assets/HeroIdentity.ts` — proportions,
-face shape, hair, outfit and colours are all data. Supply a reference photo,
-fill in the numbers, and the same rig and animation set carry over unchanged.
+face shape, hair, outfit and colours are all data. The shipped runner is built
+from a reference photograph that way, with each value carrying the measurement
+it came from; swapping in a different person is the same edit again, and the
+rig and the whole animation set carry over unchanged.
 See [`docs/HERO_PIPELINE.md`](docs/HERO_PIPELINE.md).
 
 ## Licence

@@ -515,8 +515,17 @@ const SUB_FRAME_BUDGET = 2;
  * measures how far the solver's 0.5 m grid, on which a lane change completes
  * in a single step, sits from where the player actually has to act. Budgeted
  * so it cannot drift upwards unnoticed.
+ *
+ * Raised from 80 to 90 when the jump went from 0.600 s of air to 0.636 s.
+ * A longer flight covers more ground, so a grid of fixed pitch is a coarser
+ * description of it and more routes need a nudge: 84 of 420, up from 80. The
+ * assertions that matter were unmoved — every solver-approved route still
+ * flies through the real physics, and the median route still flies untouched
+ * at its stated timing — and the windows stayed wide, from 3.7 frames at
+ * 31 m/s to 24.8 at 11.5. This is the grid's resolution showing, not the
+ * solver disagreeing with the game.
  */
-const OFFSET_BUDGET = 80;
+const OFFSET_BUDGET = 90;
 
 if (process.env.DIFF_BREAKDOWN) {
   const by = new Map<string, number>();

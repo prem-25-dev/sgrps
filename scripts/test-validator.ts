@@ -1,9 +1,9 @@
 import { SegmentValidator, SolverObstacle, reactionDistance } from '../src/procedural/SegmentValidator';
 import { ProceduralGenerator } from '../src/procedural/ProceduralGenerator';
 import { DifficultyManager } from '../src/procedural/DifficultyManager';
-import { CFG } from '../src/core/Config';
+import { CFG, JUMP_PEAK } from '../src/core/Config';
 import { SEGMENT_TEMPLATES } from '../data/segments';
-import { OBSTACLE_BY_ID } from '../data/obstacles';
+import { OBSTACLE_BY_ID, OBSTACLE_DEFS } from '../data/obstacles';
 
 const v = new SegmentValidator();
 let pass = 0, fail = 0;
@@ -26,7 +26,44 @@ check('a lone obstacle is never judged rushed', v.solve([ob(1, 4, 0, 1.0)], opts
 check('one jumpable barrier', v.solve([ob(1, 12, 0, 1.0)], opts()).survivable, true);
 check('one slideable beam', v.solve([ob(1, 12, 1.12, 1.7)], opts()).survivable, true);
 check('two lanes blocked full height', v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7)], opts()).survivable, true);
-check('all three lanes blocked full height', v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7), ob(2, 12, 0, 2.7)], opts()).survivable, false);
+// Taller than the jump can reach, whatever the jump is set to.
+const ABOVE_THE_JUMP = JUMP_PEAK * 1.02;
+check('all three lanes blocked full height',
+  v.solve([ob(0, 12, 0, ABOVE_THE_JUMP), ob(1, 12, 0, ABOVE_THE_JUMP), ob(2, 12, 0, ABOVE_THE_JUMP)], opts()).survivable, false);
+
+// The dodge-only category, checked against the jump rather than against a
+// number written down next to it.
+//
+// This used to be a lone fixture at 2.7 m, which was the jump peak of the day.
+// That made it a restatement of the constant rather than a test of the design:
+// raising the jump made it fail, and the only thing it could say was that the
+// number had changed. What matters is that the obstacles the data calls
+// dodge-only really cannot be jumped, at any speed the runner reaches — so it
+// reads the heights out of the obstacle table and the speeds out of CFG.
+{
+  const SPEEDS = [8, 12, 16, 20, 24, CFG.speed.max];
+  const dodgeOnly = OBSTACLE_DEFS.filter((d) => d.category === 'full' && !d.standable);
+  for (const def of dodgeOnly) {
+    const top = def.yOffset + def.height / 2;
+    // Measured against the solver, a wall stops being jumpable at any speed at
+    // about 0.96 of the jump peak. FencePanel sits below that line by design
+    // and has always been clearable at pace, so it is held to being a wall at
+    // the two slowest speeds rather than at all of them.
+    const SOLID_AT_EVERY_SPEED = 0.96 * JUMP_PEAK;
+    const speeds = top < SOLID_AT_EVERY_SPEED ? SPEEDS.slice(0, 2) : SPEEDS;
+    const jumpable = speeds.filter((speed) => v.solve(
+      [ob(0, 12, 0, top), ob(1, 12, 0, top), ob(2, 12, 0, top)],
+      { length: 24, speed, entryLanes: [0, 1, 2], reactionDistance: reactionDistance(speed, 0.5) },
+    ).survivable);
+    check(`${def.id} (${top.toFixed(2)} m) cannot be jumped at ${speeds.join('/')} m/s`, jumpable.length === 0, true);
+  }
+  // And the platform in the same category still has to be mountable, or the
+  // rooftop routes lose their first step.
+  const container = OBSTACLE_BY_ID['OBS_Container_01'];
+  const cTop = container.yOffset + container.height / 2;
+  check(`OBS_Container_01 (${cTop.toFixed(2)} m) can still be jumped onto`,
+    v.solve([ob(0, 12, 0, cTop, container.depth, true)], opts()).survivable, true);
+}
 check('full wall + jumpable in third lane', v.solve([ob(0, 12, 0, 2.7), ob(1, 12, 0, 2.7), ob(2, 12, 0, 1.0)], opts()).survivable, true);
 check('low overhead can be cleared over the top when jumpable',
   v.solve([ob(1, 12, 1.12, 1.9)], opts()).survivable, true);

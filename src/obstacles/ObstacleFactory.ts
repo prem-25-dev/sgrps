@@ -353,7 +353,8 @@ export function buildObstacleMesh(def: ObstacleDef, seed = 1): THREE.Group {
       door.position.set(0, 0.95, def.depth / 2 + 0.02);
       g.add(door);
       const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), material('MAT_NeonAmber'));
-      lamp.position.set(0, 2.1, def.depth / 2 + 0.06);
+      // Relative, so the lamp stays up by the roof when the box is resized.
+      lamp.position.set(0, def.height * 0.81, def.depth / 2 + 0.06);
       g.add(lamp);
       break;
     }

@@ -161,7 +161,10 @@ export class Chaser {
         shoeSole: 0x2a2d33,
         accent: 0xf0b429,
       },
-      face: { jawTaper: 0.2, brow: 0.78, cheekbone: 0.42, noseWidth: 0.6, length: 0.245 },
+      // widthRatio is pinned rather than inherited: the runner's own face is
+      // measured narrow, and a pursuer who inherits it reads as the same man
+      // in a different coat.
+      face: { jawTaper: 0.2, brow: 0.78, cheekbone: 0.42, noseWidth: 0.6, length: 0.245, widthRatio: 0.81, eyeSpacing: 0.47 },
       hair: { style: 'short', volume: 0.018, fringe: 0.2, sideburn: 0.4, stubble: 0.55 },
       outfit: { top: 'longSleeve', bottom: 'jeans', watch: true, band: false, backpack: false },
     }));

@@ -155,6 +155,7 @@ export class PlayerAnimator {
     this.stateTime = 0;
     this.cyclePhase = 0;
     this.fadeRemaining = 0;
+    this.ikLift = 0;
     this.idleTimer = 0;
   }
 
@@ -177,7 +178,7 @@ export class PlayerAnimator {
     this.advanceStateMachine(dt, ctx);
     if (this.fadeRemaining > 0) this.fadeRemaining = Math.max(0, this.fadeRemaining - dt);
     this.evaluate(ctx);
-    this.applyToRig(ctx);
+    this.applyToRig(ctx, dt);
     this.updateLod(ctx.cameraDistance);
   }
 
@@ -261,32 +262,92 @@ export class PlayerAnimator {
     }
   }
 
-  private applyToRig(ctx: AnimContext): void {
+  private applyToRig(ctx: AnimContext, dt: number): void {
     const bones = this.hero.rig.bones;
     this.output.apply(bones, this.restLocal);
-    if (this.footIkEnabled && ctx.grounded && !this.isDead) this.groundFeet();
+    if (this.footIkEnabled && ctx.grounded && !this.isDead) this.groundFeet(dt);
+    else this.ikLift = 0;
   }
+
+  /**
+   * How fast the pelvis settles back down once a foot has cleared the ground,
+   * as a rate per second. The lift only ever *rises* instantly.
+   *
+   * Low on purpose. The penetration this pass corrects is periodic — it peaks
+   * once per step — so holding near the recent peak makes the correction
+   * almost a constant offset, which adds no motion of its own. Tracking the
+   * instantaneous value instead made the pelvis follow that saw-tooth, and it
+   * is a big one: the run cycle drives a toe up to 79 mm through the deck at
+   * each strike, so the body was being hoisted and dropped by that much twice
+   * per stride.
+   *
+   * Swept against the peak jerk of pelvis height at 14 m/s, the deepest a foot
+   * sinks, and the worst a planted foot floats over any 0.4 s while the runner
+   * decelerates from 30 m/s to 6:
+   *
+   *   rate 26   -> 28,770 m/s^3   sink 0.00 mm   float 0.0 mm
+   *   rate  3   -> 15,060         sink 0.00      float 0.0
+   *   rate  1   ->  7,982         sink 0.00      float 0.0
+   *   rate  0.6 ->  6,057         sink 0.00      float 0.0
+   *   rate  0.25 -> 3,791         sink 0.00      float 0.8
+   *
+   * For reference the unfiltered pass this replaced measured 28,960 on the
+   * same trace, and the run with the pass switched off entirely measures 569.
+   *
+   * 0.6 takes about 1.7 s to forget a gait, which is quick enough to follow a
+   * change of pace and slow enough to be flat across a stride. Going lower
+   * keeps buying smoothness right up to the point where the lift is stale
+   * enough to hold a foot off the ground, which is where this stops.
+   */
+  private static readonly IK_SETTLE_RATE = 0.6;
+
+  /** Current pelvis lift from the foot contact pass, in world metres. */
+  private ikLift = 0;
 
   /**
    * Foot contact pass. Rather than a full two-bone IK solve, the pelvis is
    * lifted until the lowest foot rests on the deck. On a flat running surface
    * that removes every ground-penetration frame for a fraction of the cost.
+   *
+   * The lift is filtered rather than applied raw. Raw, it is the positive part
+   * of the penetration curve, so it leaves the pelvis height with a corner at
+   * every ground crossing — two per stride, at whatever the stride rate is.
+   * Measured as the third difference of pelvis height through a steady run,
+   * that came to 28,960 m/s^3 at 14 m/s against 569 m/s^3 with the pass
+   * switched off: a factor of fifty-one, and the single largest source of
+   * roughness in the run.
+   *
+   * Holding near the recent peak keeps both properties: a foot still cannot
+   * sink, because the lift rises instantly to whatever it finds, and the
+   * pelvis no longer follows the saw-tooth down and back up again.
+   *
+   * The other two corners in this signal — the `min` over the four foot bones,
+   * which turns wherever the lowest bone changes, and the clamp at zero — were
+   * replaced with smooth equivalents as well, and then put back. Measured, they
+   * were worth 2 m/s^3 out of 6,057: real corners, but nothing beside the
+   * 67 mm step the lift takes in a single frame when a foot lands.
    */
-  private groundFeet(): void {
+  private groundFeet(dt: number): void {
     const root = this.hero.rig.root;
     root.updateMatrixWorld(true);
     const hips = this.hero.rig.bones[BONE_INDEX['hips']];
-    let lowest = Infinity;
+    const heights: number[] = [];
     for (const name of ['toe_L', 'toe_R', 'foot_L', 'foot_R']) {
       const bone = this.hero.rig.byName.get(name);
       if (!bone) continue;
-      const y = bone.matrixWorld.elements[13] - (name.startsWith('toe') ? 0.018 : 0.05) * this.heightScale;
-      if (y < lowest) lowest = y;
+      heights.push(bone.matrixWorld.elements[13] - (name.startsWith('toe') ? 0.018 : 0.05) * this.heightScale);
     }
+    if (heights.length === 0) return;
+    const lowest = Math.min(...heights);
     if (!Number.isFinite(lowest)) return;
-    const penetration = -lowest;
-    if (penetration > 0.0005) {
-      hips.position.y += Math.min(penetration, 0.14 * this.heightScale);
+    const target = Math.min(Math.max(0, -lowest), 0.14 * this.heightScale);
+    // Frame-rate independent decay, so the run looks the same at 30 fps as at
+    // 240 — the same property the camera smoothing is held to.
+    this.ikLift += (target - this.ikLift) * (1 - Math.exp(-PlayerAnimator.IK_SETTLE_RATE * dt));
+    // ...but never below what the foot needs right now.
+    if (this.ikLift < target) this.ikLift = target;
+    if (this.ikLift > 0.0005) {
+      hips.position.y += this.ikLift;
       root.updateMatrixWorld(true);
     }
   }
