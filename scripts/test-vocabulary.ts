@@ -14,6 +14,7 @@
  * above 17 m/s, and it is not clearable at any speed.
  */
 import * as THREE from 'three';
+import { buildObstacleMesh } from '../src/obstacles/ObstacleFactory';
 import { LightingRig } from '../src/world/ZoneManager';
 import { ActiveObstacle } from '../src/core/CollisionSystem';
 import { CFG } from '../src/core/Config';
@@ -369,6 +370,34 @@ function clearableByJump(id: string): boolean {
     mute.map((o) => o.id).join(', '));
   const cats = new Set(OBSTACLE_DEFS.map((o) => o.category));
   check('all five categories are populated', cats.size === 5, [...cats].join(', '));
+}
+
+// ---------------------------------------------- art against collider
+//
+// The collider comes from the metadata and the art from the factory, and
+// nothing had ever checked that the two describe the same object. They drifted:
+// OBS_SignalBox_01's body was 0.85 of its height with the roof centred at 0.90,
+// so the player was stopped by 0.26 m of empty air above the box they could
+// see. Resizing the walls for the higher jump widened that gap, which is how it
+// surfaced — a collider that is generous in the direction the player is moving
+// is exactly the kind of hit that reads as unfair.
+{
+  const short: string[] = [];
+  const floating: string[] = [];
+  for (const def of OBSTACLE_DEFS) {
+    const mesh = buildObstacleMesh(def, 1);
+    mesh.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(mesh);
+    if (!Number.isFinite(box.min.y)) continue;
+    const colliderTop = def.yOffset + def.height / 2;
+    const colliderBottom = def.yOffset - def.height / 2;
+    // Art may overhang a collider — caps, roofs and signage do — but it must
+    // not stop short of one, in either direction.
+    if (colliderTop - box.max.y > 0.12) short.push(`${def.id} art ${box.max.y.toFixed(2)} vs collider ${colliderTop.toFixed(2)}`);
+    if (box.min.y - colliderBottom > 0.12) floating.push(`${def.id} art ${box.min.y.toFixed(2)} vs collider ${colliderBottom.toFixed(2)}`);
+  }
+  check('every obstacle\u2019s art reaches the top of its collider', short.length === 0, short.join('; '));
+  check('and reaches the bottom of it', floating.length === 0, floating.join('; '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

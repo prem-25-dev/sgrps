@@ -1760,6 +1760,27 @@ still flies through the real physics, the median route still flies untouched —
 and the windows stayed between 3.7 and 24.8 frames wide. That is the grid's
 resolution showing, not the solver disagreeing with the game.
 
+## Colliders that were bigger than the things they belonged to
+
+Resizing the walls raised a question nothing had ever asked: does an
+obstacle's art actually fill the box the player collides with? The collider
+comes from the metadata and the mesh from the factory, and the two had never
+been compared.
+
+They had drifted. `OBS_SignalBox_01` built its body at 0.85 of its height and
+centred the roof at 0.90, so the player was stopped by a quarter of a metre of
+empty air above the box they could see — the kind of hit that reads as the
+game cheating. The resize widened the gap from 0.20 m to 0.26 m, which is how
+it came to light.
+
+The new check found two more the moment it existed, neither of them anything
+to do with the resize: `OBS_Equipment_01` was 0.17 m short and
+`OBS_Toolbox_01` 0.14 m. The threshold is 0.12 m, and the temptation to move
+it to 0.2 and keep going is exactly the failure mode this document keeps
+recording, so all three were fixed instead. Art may overhang a collider —
+caps, roofs and signage do, and the check allows it — but it may not stop
+short of one.
+
 ## Known limitations
 
 - The hero is measured from a reference photograph (see `HERO_PIPELINE.md`),

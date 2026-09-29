@@ -109,15 +109,17 @@ export function buildObstacleMesh(def: ObstacleDef, seed = 1): THREE.Group {
       break;
     }
     case 'equipment': {
-      const body = new THREE.Mesh(roundedBox(def.width, def.height * 0.8, def.depth, 0.07, 2), material('MAT_SafetyYellow'));
-      body.position.y = def.height * 0.4;
+      // Full height: the cabinet is what the player collides with, so it has
+      // to be what they see. At 0.8 the art stopped 0.17 m below the collider.
+      const body = new THREE.Mesh(roundedBox(def.width, def.height, def.depth, 0.07, 2), material('MAT_SafetyYellow'));
+      body.position.y = def.height * 0.5;
       g.add(body);
       const panel = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.34, 0.05), material('MAT_PlasticDark'));
-      panel.position.set(0, def.height * 0.55, def.depth / 2 + 0.02);
+      panel.position.set(0, def.height * 0.6, def.depth / 2 + 0.02);
       g.add(panel);
       const handle = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.03, 5, 10, Math.PI), material('MAT_StainlessSteel'));
       handle.rotation.x = Math.PI / 2;
-      handle.position.set(0, def.height * 0.82, 0);
+      handle.position.set(0, def.height * 0.94, 0);
       g.add(handle);
       break;
     }
@@ -149,11 +151,14 @@ export function buildObstacleMesh(def: ObstacleDef, seed = 1): THREE.Group {
       break;
     }
     case 'toolbox': {
-      const body = new THREE.Mesh(roundedBox(def.width, def.height * 0.75, def.depth, 0.05, 2), material('MAT_TailLight'));
-      body.position.y = def.height * 0.375;
+      // The lid is the top of the box, so it sits at the top of the collider
+      // rather than at a fraction of it that left 0.14 m of air above the art.
+      const LID = 0.12;
+      const body = new THREE.Mesh(roundedBox(def.width, def.height - LID, def.depth, 0.05, 2), material('MAT_TailLight'));
+      body.position.y = (def.height - LID) / 2;
       g.add(body);
-      const lid = new THREE.Mesh(roundedBox(def.width + 0.04, 0.12, def.depth + 0.04, 0.04, 2), material('MAT_PaintedMetalDark'));
-      lid.position.y = def.height * 0.78;
+      const lid = new THREE.Mesh(roundedBox(def.width + 0.04, LID, def.depth + 0.04, 0.04, 2), material('MAT_PaintedMetalDark'));
+      lid.position.y = def.height - LID / 2;
       g.add(lid);
       break;
     }
@@ -344,10 +349,18 @@ export function buildObstacleMesh(def: ObstacleDef, seed = 1): THREE.Group {
       break;
     }
     case 'signalBox': {
-      const body = new THREE.Mesh(roundedBox(def.width, def.height * 0.85, def.depth, 0.06, 2), material('MAT_PaintedMetal'));
-      body.position.y = def.height * 0.425;
+      // Body and roof together have to reach the top of the collider, or the
+      // player is stopped by air above the box they can see. The body used to
+      // be 0.85 of the height with the roof centred at 0.90, which left the art
+      // 0.2 m short at the old size and 0.26 m short after the resize.
+      const ROOF = 0.12;
+      const body = new THREE.Mesh(roundedBox(def.width, def.height * 0.96, def.depth, 0.06, 2), material('MAT_PaintedMetal'));
+      body.position.y = def.height * 0.48;
       g.add(body);
-      const roof = new THREE.Mesh(place(new THREE.BoxGeometry(def.width + 0.2, 0.12, def.depth + 0.2), [0, def.height * 0.9, 0]), material('MAT_Corrugated'));
+      const roof = new THREE.Mesh(
+        place(new THREE.BoxGeometry(def.width + 0.2, ROOF, def.depth + 0.2), [0, def.height - ROOF / 2, 0]),
+        material('MAT_Corrugated'),
+      );
       g.add(roof);
       const door = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.9, 0.06), material('MAT_PaintedMetalDark'));
       door.position.set(0, 0.95, def.depth / 2 + 0.02);
