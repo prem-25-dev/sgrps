@@ -68,6 +68,47 @@ export const GAITS: Record<string, GaitParams> = {
   },
 };
 
+/**
+ * Bends a gait toward the form of someone who has been running for a while.
+ *
+ * A fresh runner and a runner eight hundred metres in do not move the same
+ * way, and the difference is not subtle: the trunk folds forward, the knees
+ * stop coming up as cleanly, the arms drop and start crossing the body
+ * instead of driving straight, and the shoulders roll into every stride. A
+ * cycle that stays textbook-perfect for a twenty-minute run is the thing
+ * that reads as animation rather than as a person — it is the same tell as
+ * a walk cycle that never changes speed.
+ *
+ * `effort` is 0..1. It never touches cadence, because cadence is locked to
+ * ground speed by `strideRate` and changing it here would put the feet back
+ * on ice.
+ */
+export function applyEffort(gait: GaitParams, effort: number): GaitParams {
+  const e = Math.min(1, Math.max(0, effort));
+  if (e <= 0.001) return gait;
+  return {
+    ...gait,
+    // Folds forward over the hips.
+    lean: gait.lean * (1 + e * 0.55),
+    // Knee drive decays first; this is what a tiring stride actually loses.
+    kneeSwing: gait.kneeSwing * (1 - e * 0.10),
+    hipSwing: gait.hipSwing * (1 - e * 0.06),
+    // Absorption grows as the legs stop springing back.
+    kneeStance: gait.kneeStance * (1 + e * 0.22),
+    crouch: gait.crouch * (1 + e * 0.5),
+    // The arms work harder and carry lower, elbows tighter to the ribs.
+    armSwing: gait.armSwing * (1 + e * 0.18),
+    elbowBend: gait.elbowBend * (1 + e * 0.20),
+    elbowPump: gait.elbowPump * (1 + e * 0.35),
+    // Everything above the waist starts moving, which is exactly what a
+    // tired runner looks like from behind.
+    shoulderRoll: gait.shoulderRoll * (1 + e * 0.9),
+    chestTwist: gait.chestTwist * (1 + e * 0.30),
+    pelvisTwist: gait.pelvisTwist * (1 + e * 0.25),
+    bob: gait.bob * (1 + e * 0.30),
+  };
+}
+
 function lerpGait(a: GaitParams, b: GaitParams, t: number): GaitParams {
   const out = {} as GaitParams;
   for (const key of Object.keys(a) as Array<keyof GaitParams>) {
@@ -143,9 +184,17 @@ export function locomotion(phase: number, gait: GaitParams, out: Pose): Pose {
       gait.kneeStance * 0.5 +
       gait.kneeSwing * bump(sp, 0.68, 0.30) +
       gait.kneeStance * bump(sp, 0.12, 0.22);
-    // Ankle: toes lift through the swing, plantar flex at toe-off.
+    // Ankle: the full three-beat roll of a running foot rather than one
+    // swing bump. Toes lift through the swing so the foot clears the
+    // ground, the ankle dorsiflexes hard just before contact so the foot
+    // lands under the body instead of slapping down flat, and it plantar
+    // flexes through toe-off to push. Without the strike beat the foot
+    // arrives at the same angle it swung at, which is the pose a mannequin
+    // makes and the one a runner never does.
     const ankle =
-      gait.ankleSwing * bump(sp, 0.55, 0.28) - gait.ankleSwing * 0.75 * bump(sp, 0.95, 0.22);
+      gait.ankleSwing * bump(sp, 0.55, 0.28)
+      + gait.ankleSwing * 0.55 * bump(sp, 0.06, 0.14)
+      - gait.ankleSwing * 0.75 * bump(sp, 0.95, 0.22);
 
     out.set(`thigh_${name}`, hip, 0, side * 0.03);
     out.set(`calf_${name}`, -knee);
@@ -165,16 +214,29 @@ export function locomotion(phase: number, gait: GaitParams, out: Pose): Pose {
     const arm = gait.hipMid * 0.3 - gait.armSwing * Math.sin(sp * TAU);
     const elbow = gait.elbowBend + gait.elbowPump * Math.max(0, Math.sin(sp * TAU + Math.PI));
     const flare = 0.1 + gait.armSwing * 0.06 + gait.armSwing * 0.30 * Math.max(0, Math.sin(sp * TAU));
+    // A running arm does not swing in a plane: the elbow stays out while the
+    // hand tracks across toward the sternum at the front of the swing and
+    // away from it at the back. Driving that on the forearm's yaw rather
+    // than the shoulder's keeps the elbow flare — which is what makes the
+    // motion visible from directly behind — and adds the crossing on top of
+    // it, so the hand sweeps a wider arc across the screen than either does
+    // alone.
+    const cross = gait.armSwing * 0.42 * Math.sin(sp * TAU);
     out.set(`upperArm_${name}`, arm, side * gait.chestTwist * 0.3, side * flare);
-    out.set(`forearm_${name}`, elbow, 0, side * 0.12);
-    out.set(`hand_${name}`, 0.1, 0, side * 0.16);
+    out.set(`forearm_${name}`, elbow, -side * cross, side * 0.12);
+    out.set(`hand_${name}`, 0.1, -side * cross * 0.5, side * 0.16);
     out.set(`shoulder_${name}`, gait.shoulderRoll * Math.sin(sp * TAU), 0, side * gait.shoulderRoll);
   }
 
   // Spine chain: forward lean, counter-rotation, and a small lateral sway.
   out.set('hips', -gait.lean * 0.25, gait.pelvisTwist * Math.sin(p * TAU), gait.pelvisTwist * 0.4 * Math.cos(p * TAU));
-  out.set('spine', -gait.lean * 0.35, -gait.chestTwist * 0.4 * Math.sin(p * TAU), 0);
-  out.set('chest', -gait.lean * 0.4, -gait.chestTwist * Math.sin(p * TAU), 0);
+  // The trunk also side-bends over whichever leg is carrying the weight —
+  // twice a stride, a quarter cycle out of phase with the twist. It is the
+  // difference between a torso that rotates like a turret and one attached
+  // to a pelvis.
+  const sideBend = gait.pelvisTwist * 0.5 * Math.cos(p * TAU);
+  out.set('spine', -gait.lean * 0.35, -gait.chestTwist * 0.4 * Math.sin(p * TAU), -sideBend * 0.6);
+  out.set('chest', -gait.lean * 0.4, -gait.chestTwist * Math.sin(p * TAU), -sideBend);
   // Head stabilises: it counters the chest twist and stays level with the horizon.
   out.set('neck', gait.lean * 0.35, gait.chestTwist * 0.5 * Math.sin(p * TAU), 0);
   out.set('head', gait.lean * 0.65, gait.chestTwist * 0.35 * Math.sin(p * TAU), 0);

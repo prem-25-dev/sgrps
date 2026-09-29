@@ -6,6 +6,9 @@ import { bus } from '../core/EventBus';
 import { AnimContext, PlayerAnimator } from './PlayerAnimator';
 import { Action, InputManager } from './InputManager';
 
+/** Distance over which the runner's form settles into its working shape. */
+const EFFORT_DISTANCE = 950;
+
 /**
  * The player never moves in world Z. Distance is a scalar and the world is
  * drawn relative to it, so floating point precision is identical at 10 m and
@@ -348,6 +351,7 @@ export class PlayerController {
   private readonly animContext: AnimContext = {
     speed: 0, grounded: true, verticalVelocity: 0, airProgress: 0,
     slideProgress: 0, laneDir: 0, laneProgress: 1, laneQuick: false, cameraDistance: 0,
+    effort: 0,
   };
 
   private updateAnimator(dt: number, cameraDistance: number): void {
@@ -362,6 +366,14 @@ export class PlayerController {
     ctx.laneProgress = this.laneT;
     ctx.laneQuick = this.laneQuick;
     ctx.cameraDistance = cameraDistance;
+    // Effort is read off the run rather than off a clock: two thirds of it
+    // accumulates over the first kilometre, the rest tracks how fast the
+    // player is being made to go right now. A run that ends at 300 m never
+    // sees the tired form; a long one arrives there gradually enough that
+    // nobody can name the moment it changed.
+    const distanceWork = Math.min(1, s.distance / EFFORT_DISTANCE);
+    const speedWork = Math.min(1, Math.max(0, (s.speed - CFG.speed.base) / (CFG.speed.max - CFG.speed.base)));
+    ctx.effort = distanceWork * 0.66 + speedWork * 0.34;
     this.animator.update(dt, ctx);
   }
 

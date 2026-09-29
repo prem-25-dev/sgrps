@@ -83,10 +83,36 @@ function toTexture(
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(repeat, repeat);
-  tex.anisotropy = 8;
+  tex.anisotropy = anisotropy;
   tex.colorSpace = colorSpace;
   tex.needsUpdate = true;
+  live.push(tex);
   return tex;
+}
+
+/**
+ * Anisotropic filtering level for every generated texture.
+ *
+ * This game looks down a road. Almost every pixel of ground, ballast and
+ * platform is seen at a glancing angle, which is precisely the case
+ * trilinear filtering handles worst: the mid distance turns to porridge and
+ * the lane markings dissolve a few metres ahead of where the player is
+ * trying to read them. Eight was a guess that predates knowing what the
+ * hardware offers; `setAnisotropy` raises it to whatever the GPU actually
+ * supports once the renderer exists, and retunes textures already built.
+ */
+let anisotropy = 8;
+/** Every texture handed out, so the level can be raised after the fact. */
+const live: THREE.Texture[] = [];
+
+export function setAnisotropy(max: number): void {
+  const next = Math.max(1, Math.min(16, Math.floor(max)));
+  if (next === anisotropy) return;
+  anisotropy = next;
+  for (const tex of live) {
+    tex.anisotropy = next;
+    tex.needsUpdate = true;
+  }
 }
 
 export interface NoiseTextureOptions {
@@ -231,6 +257,7 @@ export function paintedTexture(
 }
 
 export function clearTextureCache(): void {
+  live.length = 0;
   for (const tex of cache.values()) tex.dispose();
   cache.clear();
 }

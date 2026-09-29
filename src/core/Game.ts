@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { prewarmMaterials } from '../assets/MaterialLibrary';
+import { setAnisotropy } from '../assets/TextureFactory';
 import { createHero, Hero } from '../assets/HeroFactory';
 import { makeIdentity } from '../assets/HeroIdentity';
 import { AudioManager } from '../audio/AudioManager';
@@ -16,6 +17,7 @@ import { RunStats, ScoreManager } from '../progression/ScoreManager';
 import { SaveManager, Settings } from '../save/SaveManager';
 import { UIManager } from '../ui/UIManager';
 import { VFXManager } from '../vfx/VFXManager';
+import { Chaser } from '../world/Chaser';
 import { TrackManager } from '../world/TrackManager';
 import { LightingRig, ZoneManager } from '../world/ZoneManager';
 import { CFG } from './Config';
@@ -61,6 +63,7 @@ export class Game {
   private readonly tutorial: Tutorial;
 
   private hero!: Hero;
+  private chaser!: Chaser;
   private animator!: PlayerAnimator;
   private player!: PlayerController;
 
@@ -156,11 +159,20 @@ export class Game {
     };
 
     await step(0.05, 'Generating materials');
+    // Ask the GPU what it can filter before anything is generated, so the
+    // ground and the lane markings stay legible into the mid distance.
+    setAnisotropy(this.renderer.capabilities.getMaxAnisotropy());
     prewarmMaterials();
 
     await step(0.35, 'Building the runner');
     this.hero = createHero(makeIdentity());
     this.playerRoot.add(this.hero.object);
+    // The inspector is built here rather than in the constructor: he is a
+    // second skinned character, and a few hundred milliseconds of rigging
+    // belongs behind the loading bar where the player can see it happening.
+    this.chaser = new Chaser();
+    this.scene.add(this.chaser.root);
+    this.chaser.setEnabled(false);
     this.animator = new PlayerAnimator(this.hero);
     this.player = new PlayerController(this.hero, this.animator, this.collision, this.input, {
       onHit: (hit) => this.handleHit(hit),
@@ -212,6 +224,8 @@ export class Game {
     this.vfx.reset();
     this.cameraController.reset();
     this.player.reset();
+    this.chaser.setEnabled(this.save.settings.quality !== 'low');
+    this.chaser.reset();
     this.ui.resetHud();
     this.pendingResults = null;
     this.resultsCountdown = 0;
@@ -240,10 +254,12 @@ export class Game {
     if (this.powerUps.consumeShield()) {
       this.audio.play('SFX_ShieldHit');
       this.cameraController.addShake(0.5);
+      this.chaser.onPlayerHit();
       this.vfx.setShield(false);
       return true;
     }
     this.cameraController.addShake(0.9);
+    this.chaser.onPlayerHit();
     this.score.onHit(this.player.state.distance);
     this.difficulty.grantRelief();
     return false;
@@ -251,12 +267,17 @@ export class Game {
 
   private handleNearMiss(obstacle: ActiveObstacle): void {
     this.score.addNearMiss();
+    this.chaser.onNearMiss();
     this.cameraController.addShake(0.22);
     this.audio.play('SFX_Whoosh');
     bus.emit('player:nearMiss', { obstacle: obstacle.def.id, distance: 0 });
   }
 
   private handleDeath(cause: string): void {
+    // The chaser stops being updated the moment the simulation does, and a
+    // man frozen mid-stride behind the game-over orbit reads as a broken
+    // model rather than as a pursuer. He leaves with the run.
+    this.chaser.setEnabled(false);
     this.tutorial.finish();
     this.ui.setTutorial(null);
     this.difficulty.setCeiling(1);
@@ -345,6 +366,7 @@ export class Game {
     this.ui.onState(GameState.MAIN_MENU);
     this.animator.play('menuIdle', true);
     this.player.reset();
+    this.chaser.setEnabled(false);
     this.track.reset(this.seed);
     // reset() empties the world; prime it again so the menu has a backdrop.
     this.track.update(0, 0, CFG.speed.base);
@@ -382,6 +404,9 @@ export class Game {
     this.vfx.setPixelRatio(dpr);
     this.vfx.setQuality(s.reducedMotion, profile.particleScale);
     this.track.setDecorDensity(profile.decorDensity);
+    // A second skinned character is the single most expensive thing on
+    // screen after the hero, so the weakest profile runs without one.
+    this.chaser?.setEnabled(s.quality !== 'low');
     this.track.ambientTrains.setEnabled(profile.decorDensity > 0.6);
 
     const shadows = s.shadows && profile.shadowSize > 0;
@@ -490,6 +515,8 @@ export class Game {
     if (this.powerUps.speedMultiplier > 1) this.vfx.play('VFX_Boost', s.x, s.y, 0, 0.5);
 
     this.lighting.aimHeadlight(this.track.nearestOncoming(s.distance), dt);
+    this.chaser.update(dt, s, this.cameraDistanceToHero());
+    this.lighting.aimTorch(this.chaser.position, this.chaser.pressure, dt);
 
     this.audio.setIntensity(speedT);
     this.audio.setTrainProximity(this.track.trainProximity(s.distance));
@@ -518,8 +545,9 @@ export class Game {
   }
 
   private updateMenu(dt: number): void {
-    // No train is bearing down on the menu.
+    // Nothing is bearing down on the menu, and nobody is chasing.
     this.lighting.aimHeadlight(null, dt);
+    this.lighting.aimTorch(null, 0, dt);
     this.animator.update(dt, {
       speed: 0, grounded: true, verticalVelocity: 0, airProgress: 0, slideProgress: 0,
       laneDir: 0, laneProgress: 1, laneQuick: false, cameraDistance: 3.2,
@@ -607,6 +635,7 @@ export class Game {
     this.vfx.dispose();
     this.coins.dispose();
     this.hero?.dispose();
+    this.chaser?.dispose();
     this.renderer.dispose();
   }
 }

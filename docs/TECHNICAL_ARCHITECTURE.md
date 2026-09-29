@@ -33,7 +33,8 @@ src/assets/        TextureFactory, MaterialLibrary, GeometryUtil,
 src/player/        Pose, AnimationClips, PlayerAnimator, PlayerController,
                    InputManager
 src/camera/        CameraController
-src/world/         TrackManager, DecorScatter, ZoneManager (+ LightingRig)
+src/world/         TrackManager, DecorScatter, ZoneManager (+ LightingRig),
+                   AmbientTrains, Chaser
 src/procedural/    SegmentValidator, ProceduralGenerator, DifficultyManager
 src/obstacles/     ObstacleFactory
 src/collectibles/  CoinFactory, CollectibleManager
@@ -121,6 +122,41 @@ space at the ground speed. The authored cadences alone gave 77–80% of that, so
 `npm run test:animation` samples the toe through the contact window at six
 speeds and fails if it drifts either side, so a future gait edit cannot
 quietly reintroduce the skate.
+
+## The chaser
+
+`world/Chaser.ts` puts a second person on the track: an inspector who closes
+when the player makes a mistake and drops back when they do not. He is pure
+presentation — no collider, no effect on the rules — but two constraints
+shaped the whole design.
+
+**He has to be inside the frustum.** The chase camera sits 7.4 m behind the
+runner, so a pursuer "behind the player" in any ordinary sense is behind the
+camera and is never drawn. Projecting him through the real `CameraController`
+gives the usable window:
+
+| gap | what is on screen |
+|---|---|
+| 5.5 m | his head crosses the bottom edge: gone |
+| 4.3 m | head and shoulders, falling away |
+| 3.3 m | waist up, over the runner's shoulder |
+| 3.1 m | feet enter frame: the whole man |
+
+So the band is 2.3–4.3 m, and **how much of him is showing is the readout**.
+A player in trouble sees a whole man; a player running well sees a head
+dropping out of shot. `test:chaser` projects him each frame and fails if that
+stops being true.
+
+**He must not run through walls.** Rather than give him collision,
+path-finding and his own fairness guarantees, he replays the player's
+trajectory delayed by the gap — a ring buffer of `(distance, x, y, airborne,
+sliding)` sampled every 0.2 m. He jumps where they jumped and takes the lane
+they took, so his route is survivable by construction: somebody just survived
+it. It costs a bounded buffer rather than a second simulation.
+
+His torch is a `SpotLight` allocated once in `LightingRig`, on the same terms
+as the train headlight: moved and dimmed, never added or removed, because
+three.js recompiles every shader in the scene when the light count changes.
 
 ## Procedural generation and the fairness engine
 

@@ -1426,6 +1426,112 @@ was the light counter using `traverse` instead of `traverseVisible`. Both were
 caught only because the sabotage pass is run against every new guard, and
 neither would have been caught by reading the test.
 
+## A pursuer nobody would ever have seen
+
+The brief was a guy chasing you. The first working version ran 5.4 m behind
+the player and was, on screen, nothing at all.
+
+The chase camera sits 7.4 m back. "Behind the player" therefore means
+somewhere between the runner and the lens, and the frame is not generous
+about it: the camera looks slightly down, so the bottom edge at a distance
+`d` in front of it is at roughly `y = 3.3 - 0.68d`. Projecting the chaser
+through the real `CameraController` rather than working it out on paper --
+the controller's smoothing, follow height and lane lean all move the answer:
+
+| gap | head, in clip space | feet |
+|---|---|---|
+| 2.4 m | -0.33 | -0.85 |
+| 3.2 m | -0.41 | -1.02 |
+| 4.0 m | -0.52 | -1.26 |
+| 4.8 m | -0.70 | -1.63 |
+| 5.6 m | -1.02 | -2.26 |
+
+The frame edge is -1.00. So at the original 5.4 m he was below it: correct
+by every number the first version of the test checked, and invisible.
+
+The first test asserted "he stays inside the camera, not behind it" --
+`gap < 7.4`. That is the frustum check the camera suite was already caught by
+once: a bound that almost anything satisfies. It passed on a pursuer nobody
+could see. Replacing it with a projection through the real camera, and
+re-tuning the band to 2.3-4.3 m, made **how much of him is showing** the
+readout: a whole man after a mistake, a head falling out of shot on a clean
+run.
+
+Two things the projection test then found on its own:
+
+- **He crossed the runner's line.** He picked whichever side had more track
+  and eased across when the player changed lane -- and an eased crossing has
+  to pass through zero. Measured, he came within 1 cm of the player's line,
+  directly behind them, covering the strip of track the player reads. He
+  holds one side now. The lanes only reach 2.4 m inside a 4.8 m bed, so a
+  fixed offset is always on the ballast and never on the line.
+- **A jump takes him out of frame, and no gap fixes that.** While the player
+  is 2.7 m up the camera has climbed with them; anyone still on the ground
+  four metres back projects to -1.27 even at the closest cruising distance.
+  That is not a bug to tune away, so the test says what is true instead: his
+  head is in frame for 98.9% of grounded frames, and never below -1.35. Under
+  sabotage -- the band widened back past the camera -- that collapses to
+  12.7% and -76.
+
+He has no collider and no path-finding. He replays the player's own
+trajectory delayed by the gap, so he jumps where they jumped and takes the
+lane they took. His route is survivable because somebody just survived it.
+
+### And one thing the screenshot found that no number did
+
+With the band at 3.9-4.8 m every assertion passed and the picture showed a
+head in the bottom corner of the frame -- technically in shot, and reading as
+a bystander rather than as somebody coming for you. Pulled in to 3.3-4.3 m he
+is a running man for the whole band. No test would ever have said so.
+
+## A treadmill with scenery
+
+The planting was a probability per segment scaled by a zone's vegetation
+density, which in the metro and industrial zones is 0.15-0.5. Whole stretches
+had nothing growing within sixty metres of the line -- and nothing passing
+close by means no sense of speed, which is the entire job of the scenery in a
+runner.
+
+It is a rhythm now, not a dice roll: a tree every 8.5 m on a grid of absolute
+track Z, the two sides offset half a spacing apart, thinned by zone but never
+switched off. `test:zones` counts what each zone actually places over 720 m,
+and the floor across all seven is now 183 objects with a continuous avenue
+running through every one of them.
+
+Two things had to be got right for it to be safe:
+
+- **The bands are disjoint.** The neighbouring running lines sit at 10.2 m
+  from the centre, with ambient trains on them -- which is almost exactly the
+  distance an avenue wants to be at, and anything planted there would be
+  driven through several times a minute. The lateral layout is written down
+  in `DecorScatter` as a table instead of a number per call site -- cess
+  6.0-8.0 m,
+  running lines 10.2 m, avenue 12.2-14.4 m, road 15.0-18.4 m, gardens and
+  buildings beyond -- and every placement reads its band from it.
+- **A tree is twenty meshes.** A recursive three-deep trunk comes out at about
+  twenty separate meshes, and an avenue puts eighty of them on screen. Merged
+  by material they are two draws each, and `mergeByMaterial` carries the
+  instanced grass across rather than flattening it. The 20 km soak still
+  plateaus with the avenue in place: 1592 scene objects early against 1420
+  late, and a decor pool settling at 939 retained objects across 196 keys.
+
+The draw call count did rise: 761 at 130 m against the ~250 this build used
+to report, of which 152 is planting, 76 is houses and 86 is two characters.
+That is the honest cost of having something out there. It is well inside a
+sane budget on real hardware, and consolidating the house materials -- one
+stone for every dressed edge, one timber for every board, which is also how
+houses are actually built -- took 27 draws back for nothing.
+
+### The thing that looked like a bug and was not
+
+A screenshot showed the runner apparently straddling an orange park bench in
+his own lane, which would have been a serious placement fault. A probe that
+sampled every visible mesh inside the corridor over 150 m of running found
+nothing there but track, obstacles and the two characters. The object was
+`OBS_Barricade_01` doing its job, and both screenshots were the same frozen
+frame: the run had ended on it. Recorded because the wrong diagnosis was one
+edit away from being acted on.
+
 ## Known limitations
 
 - The hero's identity is the default config; supply a reference photo and

@@ -224,6 +224,38 @@ what happens to a copy embedded in a frame that was not granted the permission.
   speed lines, shield bubble, magnet field, collision debris.
 - Audio: adaptive three-layer score that thickens with speed, per-zone
   ambience beds, and a rolling-stock bed that swells as trains pass.
+- Lens grade: a vignette and a cool corner wash composited over the canvas in
+  CSS rather than a post-processing chain — no second render target, no shader
+  to maintain, and nothing for the software rasteriser in CI to choke on. It
+  sits under the HUD, so the interface is never dimmed by it.
+- Shadows are fitted to a 30 x 36 m box around the player rather than the 44 m
+  box they used to use. At 2048 that is 68 texels per metre, which is where a
+  contact shadow starts reading as contact rather than as dirt.
+- The runner's form changes over a long run: an effort layer folds him
+  forward, costs him knee drive and puts the work into his shoulders and arms.
+  It never touches cadence, which stays locked to ground speed.
+
+## The world either side of the line
+
+One flank of a railway is never the same as the other. The tracks were laid
+along the back of somewhere, and one side ends up domestic while the other
+keeps the sheds and the yards.
+
+- **Screen-left is residential.** Houses — a dedicated archetype with a gable
+  roof, chimney, porch, sills and a garden wall — stand closer to the line
+  than the commercial blocks opposite, because a house at an office block's
+  setback is a smudge on the horizon. A measured run at 130 m had nine houses
+  on the left against four on the right.
+- **Both sides are planted.** The roadside avenue is a rhythm rather than a
+  dice roll: a tree every 8.5 m on a grid of absolute track Z, offset half a
+  spacing between the sides, thinned by zone but never switched off. Scattered
+  planting alone left whole zones with nothing passing close by, and a runner
+  with nothing passing close by has no sense of speed at all.
+- **The bands are disjoint by construction.** Cess props at 6.0–8.0 m from the
+  centre line, the neighbouring running lines at 10.2 m where the ambient
+  trains pass, the avenue at 12.2–14.4 m, the service road at 15.0–18.4 m,
+  gardens and buildings beyond. Trees planted at a distance that merely looked
+  right sat on the live lines and were driven through several times a minute.
 
 ## Definition of done
 

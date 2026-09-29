@@ -74,6 +74,14 @@ export interface AnimContext {
   laneQuick: boolean;
   /** Camera-relative distance, used for LOD. */
   cameraDistance: number;
+  /**
+   * 0..1: how long this runner has been working.
+   *
+   * Reshapes the gait rather than the clip — see `applyEffort`. Optional so
+   * every other caller of the animator (the menu, the death camera, the
+   * chaser) can leave it alone and get the fresh form.
+   */
+  effort?: number;
 }
 
 export class PlayerAnimator {
@@ -96,7 +104,17 @@ export class PlayerAnimator {
   private lastFootPhase = 0;
   private footIkEnabled = true;
 
-  constructor(private readonly hero: Hero) {
+  /**
+   * Whether this rig announces its footsteps.
+   *
+   * The bus drives the player's step audio and dust, so a second character
+   * running on the same rig doubles every footstep the player takes — audible
+   * immediately as a flam under the run. The chaser sets this false.
+   */
+  private readonly emitEvents: boolean;
+
+  constructor(private readonly hero: Hero, options: { emitEvents?: boolean } = {}) {
+    this.emitEvents = options.emitEvents ?? true;
     this.heightScale = hero.identity.height / REFERENCE_HEIGHT;
     for (const bone of hero.rig.bones) this.restLocal.push(bone.position.clone());
     this.current.identity();
@@ -143,7 +161,7 @@ export class PlayerAnimator {
   update(dt: number, ctx: AnimContext): void {
     this.time += dt;
     this.stateTime += dt;
-    this.gait = clips.gaitForSpeed(ctx.speed);
+    this.gait = clips.applyEffort(clips.gaitForSpeed(ctx.speed), ctx.effort ?? 0);
 
     // The run cycle is driven by ground speed, never by wall clock, so feet
     // never slide regardless of how fast the game gets.
@@ -165,6 +183,7 @@ export class PlayerAnimator {
 
   /** Fires a footstep at each mid-stance, twice per stride. */
   private emitFootsteps(prev: number, next: number, speed: number): void {
+    if (!this.emitEvents) return;
     const crossed = (mark: number) => (prev < mark && next >= mark) || (next < prev && (prev < mark || next >= mark));
     if (crossed(0.06) || crossed(0.56)) {
       if (Math.abs(this.cyclePhase - this.lastFootPhase) > 0.15 || this.lastFootPhase === 0) {

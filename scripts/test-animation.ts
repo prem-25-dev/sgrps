@@ -312,6 +312,53 @@ console.log('\nWhat the gameplay camera can actually see:');
 }
 
 // ---------------------------------------------------------------------------
+console.log('\nA run that changes as it goes on:');
+{
+  // A cycle that looks identical at 50 m and at 5 km is the tell that nobody
+  // is running, something is being played back. The effort layer bends the
+  // gait toward the form of someone who has been working: folded further
+  // forward, arms carried harder, shoulders rolling into every stride.
+  //
+  // Measured on the parameters rather than on pixels, because that is where
+  // the change lives, and then confirmed on the rig below — a parameter that
+  // moves and a body that does not would be worth nothing.
+  const fresh = clips.gaitForSpeed(18);
+  const tired = clips.applyEffort(fresh, 1);
+
+  check('effort folds the runner forward', tired.lean > fresh.lean * 1.3,
+    `lean ${fresh.lean.toFixed(3)} -> ${tired.lean.toFixed(3)}`);
+  check('effort costs knee drive', tired.kneeSwing < fresh.kneeSwing,
+    `knee ${fresh.kneeSwing.toFixed(2)} -> ${tired.kneeSwing.toFixed(2)}`);
+  check('effort drives the upper body harder',
+    tired.shoulderRoll > fresh.shoulderRoll * 1.5 && tired.elbowPump > fresh.elbowPump,
+    `shoulder ${fresh.shoulderRoll.toFixed(3)} -> ${tired.shoulderRoll.toFixed(3)}`);
+  // Cadence is locked to ground speed by strideRate. If effort moved it, the
+  // feet would start skating again and the calibration above would be a lie.
+  check('and never touches cadence', tired.cadence === fresh.cadence,
+    `${fresh.cadence} -> ${tired.cadence}`);
+
+  const hero = createHero(DEFAULT_IDENTITY);
+  const v = new THREE.Vector3();
+  const chestPitch = (effort: number) => {
+    const animator = new PlayerAnimator(hero);
+    animator.reset();
+    // Sample at the same point in the cycle both times, so the comparison is
+    // of form and not of phase.
+    for (let i = 0; i < 90; i++) animator.update(1 / 60, ctx({ speed: 18, effort }));
+    hero.object.updateMatrixWorld(true);
+    hero.rig.byName.get('head')!.getWorldPosition(v);
+    return v.z;
+  };
+  const freshHead = chestPitch(0);
+  const tiredHead = chestPitch(1);
+  // The model runs facing +Z, so folding forward carries the head further
+  // along +Z relative to the hips.
+  check('the body actually moves with it', Math.abs(tiredHead - freshHead) > 0.01,
+    `head ${(freshHead * 100).toFixed(1)} -> ${(tiredHead * 100).toFixed(1)} cm`);
+  check('the rig stays sane under full effort', rigIsSane(hero).ok, rigIsSane(hero).why);
+}
+
+// ---------------------------------------------------------------------------
 console.log('\nState machine:');
 {
   const hero = createHero(DEFAULT_IDENTITY);

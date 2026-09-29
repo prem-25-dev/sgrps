@@ -38,6 +38,36 @@ html, body {
 #app { position: fixed; inset: 0; }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
+/*
+ * Lens grade: a vignette and a cool corner wash over the rendered frame.
+ *
+ * This is compositing, not rendering. A real post chain would mean a second
+ * render target, a full-screen pass and a shader to maintain, and under the
+ * software rasteriser CI runs on it would cost more than everything else in
+ * the frame put together. Two stacked gradients on one fixed layer do the
+ * part that actually reads — pulling the eye off the corners and onto the
+ * track — for no GPU work at all.
+ *
+ * It sits above the canvas and below `#ui`, so the HUD is never dimmed by
+ * it. It is also invisible to `test:hud-contrast`, which samples the WebGL
+ * buffer: the measured contrast is therefore the conservative one, taken
+ * against a brighter background than the player actually sees.
+ */
+#grade {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 42%, rgba(0, 0, 0, 0) 42%, rgba(4, 7, 14, 0.30) 78%, rgba(3, 5, 11, 0.58) 100%),
+    linear-gradient(to bottom, rgba(12, 22, 40, 0.16) 0%, rgba(0, 0, 0, 0) 26%);
+  mix-blend-mode: multiply;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Lighter, and without the cool wash: less to swim in. */
+  #grade { background: radial-gradient(120% 90% at 50% 42%, rgba(0, 0, 0, 0) 55%, rgba(4, 7, 14, 0.24) 100%); }
+}
+
 #ui {
   position: fixed;
   inset: 0;
