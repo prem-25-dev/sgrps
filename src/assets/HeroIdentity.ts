@@ -140,8 +140,23 @@ export const DEFAULT_IDENTITY: HeroIdentity = {
   },
 };
 
+/**
+ * Overrides for `makeIdentity`, partial all the way down.
+ *
+ * `Partial<HeroIdentity>` only makes the top level optional, so changing one
+ * cheekbone meant restating all fifteen face measurements. Every group is
+ * merged field by field below, so the type should say so.
+ */
+export type IdentityOverrides =
+  Partial<Omit<HeroIdentity, 'face' | 'colors' | 'hair' | 'outfit'>> & {
+    face?: Partial<HeroIdentity['face']>;
+    colors?: Partial<HeroIdentity['colors']>;
+    hair?: Partial<HeroIdentity['hair']>;
+    outfit?: Partial<HeroIdentity['outfit']>;
+  };
+
 /** Merge a partial override (e.g. loaded from a reference photo) over defaults. */
-export function makeIdentity(overrides: Partial<HeroIdentity> = {}): HeroIdentity {
+export function makeIdentity(overrides: IdentityOverrides = {}): HeroIdentity {
   return {
     ...DEFAULT_IDENTITY,
     ...overrides,

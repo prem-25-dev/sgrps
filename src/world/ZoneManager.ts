@@ -36,6 +36,14 @@ export class LightingRig {
   /** Rides the nearest oncoming train; dark when there is none. */
   readonly headlight: THREE.SpotLight;
   private headlightLevel = 0;
+  /** Rides the chaser; dark when nobody is chasing. */
+  readonly torch: THREE.SpotLight;
+  private torchLevel = 0;
+  /**
+   * How dark the current zone is, 0..1, published by the zone cross-fade.
+   * Anything that has to burn brighter after sundown reads it from here.
+   */
+  nightLevel = 0;
   readonly sky: THREE.Mesh;
   readonly ground: THREE.Mesh;
 
@@ -44,12 +52,21 @@ export class LightingRig {
     this.sun.position.set(-40, 60, 30);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(1024, 1024);
+    // Shadow frustum, fitted to what the player can actually see sharply.
+    //
+    // It was a 44 x 44 m box, which at a 2048 map is 46 texels per metre —
+    // and at that density the runner's own shadow, the thing every frame is
+    // built around, is a soft grey smudge. The box below covers the track
+    // from just behind the camera to the middle distance and little else;
+    // scenery further out has fog doing most of the work anyway. 2048 over
+    // 30 m is 68 texels per metre, which is where contact shadows start
+    // reading as contact rather than as dirt.
     this.sun.shadow.camera.near = 1;
-    this.sun.shadow.camera.far = 120;
-    this.sun.shadow.camera.left = -22;
-    this.sun.shadow.camera.right = 22;
-    this.sun.shadow.camera.top = 26;
-    this.sun.shadow.camera.bottom = -18;
+    this.sun.shadow.camera.far = 100;
+    this.sun.shadow.camera.left = -15;
+    this.sun.shadow.camera.right = 15;
+    this.sun.shadow.camera.top = 22;
+    this.sun.shadow.camera.bottom = -14;
     this.sun.shadow.bias = -0.0012;
     this.sun.shadow.normalBias = 0.03;
     scene.add(this.sun);
@@ -82,6 +99,17 @@ export class LightingRig {
     this.headlight.target.position.set(0, 0, 0);
     scene.add(this.headlight);
     scene.add(this.headlight.target);
+
+    // The chaser's torch, on the same terms as the headlight: allocated once
+    // here, parked at zero intensity rather than hidden, and moved onto the
+    // chaser each frame. It rakes the back of the runner, which is what puts
+    // him in the frame at all in the darker zones.
+    this.torch = new THREE.SpotLight(0xffe6b0, 0, 26, 0.5, 0.6, 1.4);
+    this.torch.name = 'ENV_ChaserTorch';
+    this.torch.position.set(0, 1.6, -6);
+    this.torch.target.position.set(0, 1, 0);
+    scene.add(this.torch);
+    scene.add(this.torch.target);
 
     // Sky dome: a vertical gradient, cheap and always behind everything.
     const skyGeo = new THREE.SphereGeometry(400, 24, 16);
@@ -203,6 +231,27 @@ export class LightingRig {
     this.headlight.intensity = this.headlightLevel * 240;
   }
 
+  /**
+   * Points the chaser's torch at the runner's back.
+   *
+   * `level` is how hard he is pressing, 0..1. The beam is brightest when he
+   * is on the shoulder and fades as he drops away, so the light itself is a
+   * readout: a player can tell how much trouble they are in from the shadow
+   * thrown ahead of them, without ever looking away from the track.
+   */
+  aimTorch(from: THREE.Vector3 | null, level: number, dt: number): void {
+    const target = from ? Math.min(1, Math.max(0, level)) : 0;
+    this.torchLevel += (target - this.torchLevel) * (1 - Math.exp(-(from ? 8 : 20) * dt));
+    if (this.torchLevel < 0.004) this.torchLevel = 0;
+    if (from) {
+      this.torch.position.set(from.x, from.y + 1.45, from.z + 0.2);
+      this.torch.target.position.set(from.x * 0.3, 0.9, from.z + 7);
+      this.torch.target.updateMatrixWorld();
+    }
+    // Brighter in the dark zones, where it is the only thing lighting him.
+    this.torch.intensity = this.torchLevel * (12 + this.nightLevel * 26);
+  }
+
   setShadows(enabled: boolean): void {
     this.sun.castShadow = enabled;
   }
@@ -302,6 +351,7 @@ export class ZoneManager {
     const targetNeon = a.neon + (b.neon - a.neon) * t;
     this.neon += (targetNeon - this.neon) * smoothing;
     setNeonIntensity(0.35 + this.neon * 1.5);
+    this.rig.nightLevel = this.neon;
   }
 
   /** Keeps the sky and shadow frustum centred on the player. */
