@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ringXZ, sweep, Ring } from '../src/assets/GeometryUtil';
+import { buildTrackModule, fixingGeometry, sleeperGeometry, TRACK_VARIANTS } from '../src/assets/TrackFactory';
 import { createHero } from '../src/assets/HeroFactory';
 import { DEFAULT_IDENTITY } from '../src/assets/HeroIdentity';
 
@@ -222,6 +223,51 @@ console.log('\nThe shirt print:');
   // mirror — one flag, not one per side.
   check('u runs to the left of a viewer behind the runner', dxBack < 0, `dx ${dxBack.toFixed(4)}`);
   check('and to the left of a viewer in front as well', dxChest > 0, `dx ${dxChest.toFixed(4)}`);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\nWhat the permanent way costs:');
+{
+  // The track is laid under every metre of every run, so whatever it costs is
+  // paid continuously and on every device. It was the most expensive thing in
+  // the game by a wide margin -- 66.5k triangles to the 24 m module, 598k of
+  // the 884k in view at 600 m -- and almost all of it was bevel on parts too
+  // small to show one: a 2 cm radius on a sleeper and a 1.5 cm radius on a
+  // 16 cm rail chair, both swept sixteen ways round, 304 of them per module.
+  //
+  // This budget is deliberately not a tight fit. It is here to catch a part
+  // of the track quietly going back to a high-segment sweep, which is a change
+  // that looks free in a screenshot and is not.
+  const cost = (root: THREE.Object3D) => {
+    let tris = 0;
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const g = m.geometry as THREE.BufferGeometry;
+      const idx = g.index ? g.index.count : (g.attributes.position?.count ?? 0);
+      const inst = (m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1;
+      tris += (idx / 3) * inst;
+    });
+    return tris;
+  };
+  let worst = 0;
+  let worstName = '';
+  for (const variant of TRACK_VARIANTS) {
+    const tris = cost(buildTrackModule(variant, 7));
+    if (tris > worst) { worst = tris; worstName = variant; }
+  }
+  check('every track module stays inside its triangle budget', worst < 60000,
+    `${worstName} costs ${(worst / 1000).toFixed(1)}k triangles`);
+  console.log(`  dearest module: ${worstName} at ${(worst / 1000).toFixed(1)}k triangles`);
+
+  // And the sleeper and the chair specifically, since they are the two that
+  // are instanced hundreds of times and so the two that matter.
+  const count = (g: THREE.BufferGeometry) =>
+    (g.index ? g.index.count : g.attributes.position.count) / 3;
+  check('a sleeper is cheap enough to lay 114 of per module', count(sleeperGeometry()) <= 96,
+    `${count(sleeperGeometry())} triangles`);
+  check('a rail chair is cheap enough to lay 228 of per module', count(fixingGeometry()) <= 24,
+    `${count(fixingGeometry())} triangles`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

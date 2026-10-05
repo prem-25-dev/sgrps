@@ -187,14 +187,41 @@ export const SEGMENT_TEMPLATES: SegmentTemplate[] = [
   // keeps it survivable: it widens the hazard by its closing drift and
   // refuses any segment with no route through, so lowering the gate makes
   // the generator reject more attempts rather than ship an unfair one.
-  t('SEG_TrainMoving_01', 'train', 0.08, 1, 5, [
+  t('SEG_TrainMoving_01', 'train', 0.08, 1, 11, [
     { type: 'train', id: 'OBS_TrainMoving_01', lane: 1, z: 2, length: 23 },
     { type: 'coinPattern', id: 'PAT_Straight', lane: 1, z: 1 },
   ], { entryLanes: [1] }),
-  t('SEG_TrainMoving_02', 'train', 0.13, 1, 4, [
+  t('SEG_TrainMoving_02', 'train', 0.13, 1, 9, [
     { type: 'train', id: 'OBS_TrainMoving_01', lane: 0, z: 2, length: 23 },
     { type: 'coinPattern', id: 'PAT_Straight', lane: 0, z: 1 },
   ], { entryLanes: [0] }),
+  // The right-hand road. Its absence was not a design decision: every
+  // oncoming service in the game came down the middle or the left, so a
+  // player who learned to break right was never once wrong.
+  t('SEG_TrainMoving_03', 'train', 0.13, 1, 9, [
+    { type: 'train', id: 'OBS_TrainMoving_01', lane: 2, z: 2, length: 23 },
+    { type: 'coinPattern', id: 'PAT_Straight', lane: 2, z: 1 },
+  ], { entryLanes: [2] }),
+  // A service down the middle with the left road already blocked, so the
+  // escape has a side to it rather than being "move anywhere".
+  t('SEG_TrainMoving_04', 'train', 0.38, 1, 7, [
+    { type: 'train', id: 'OBS_TrainMoving_01', lane: 1, z: 2, length: 23 },
+    { type: 'obstacle', id: 'OBS_Barrier_01', lane: 0, z: 9 },
+    { type: 'coinPattern', id: 'PAT_Straight', lane: 2, z: 12 },
+  ], { entryLanes: [1] }),
+  t('SEG_TrainMoving_05', 'train', 0.38, 1, 7, [
+    { type: 'train', id: 'OBS_TrainMoving_01', lane: 1, z: 2, length: 23 },
+    { type: 'obstacle', id: 'OBS_Barrier_01', lane: 2, z: 9 },
+    { type: 'coinPattern', id: 'PAT_Straight', lane: 0, z: 12 },
+  ], { entryLanes: [1] }),
+  // Two services, one either side, and the only road left is the middle.
+  // The solver has to agree the player can reach it from where this segment
+  // can be entered -- if it cannot, the generator throws the attempt away.
+  t('SEG_TrainMoving_06', 'train', 0.52, 1, 6, [
+    { type: 'train', id: 'OBS_TrainMoving_01', lane: 0, z: 3, length: 23 },
+    { type: 'train', id: 'OBS_TrainMoving_01', lane: 2, z: 3, length: 23 },
+    { type: 'coinPattern', id: 'PAT_Straight', lane: 1, z: 6 },
+  ], { entryLanes: [0, 2] }),
 
   // ---- Risk and reward -------------------------------------------------
   t('SEG_RiskReward_01', 'riskReward', 0.25, 1, 6, [

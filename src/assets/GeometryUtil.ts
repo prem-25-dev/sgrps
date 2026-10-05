@@ -199,13 +199,22 @@ export function place(
   return geo;
 }
 
-/** Rounded box built from a bevelled sweep. Used for crates, signs, bodies. */
+/**
+ * Rounded box built from a bevelled sweep. Used for crates, signs, bodies.
+ *
+ * `radialSegments` is how many sides the sweep goes round in. Sixteen is right
+ * for anything the player gets close to, and wasteful for anything small and
+ * repeated: a 16 cm rail chair drawn with a sixteen-sided sweep costs 128
+ * triangles for a bevel that is a fraction of a pixel at the gameplay camera's
+ * distance, and the track lays down 228 of them every 24 m.
+ */
 export function roundedBox(
   width: number,
   height: number,
   depth: number,
   radius: number,
   steps = 3,
+  radialSegments = 16,
 ): THREE.BufferGeometry {
   const r = Math.min(radius, width / 2.05, height / 2.05, depth / 2.05);
   const rings: Ring[] = [];
@@ -230,7 +239,7 @@ export function roundedBox(
     const y = height / 2 - r * (1 - Math.cos((t * Math.PI) / 2));
     push(y, r * (1 - Math.sin((t * Math.PI) / 2)));
   }
-  return sweep(rings, { radialSegments: 16, capStart: true, capEnd: true });
+  return sweep(rings, { radialSegments, capStart: true, capEnd: true });
 }
 
 /** Counts triangles across a whole object tree; used by the asset budget report. */
