@@ -1893,6 +1893,38 @@ rather than of a later one. This is the same class of bug as every fixed-wait
 in this project's history, one step further in — the wait was already paced off
 simulation state, and that still was not enough.
 
+## A train shorter than the box that kills you
+
+Photographing the oncoming service raised a question nothing had asked: is
+the train the player can see the same size as the train they collide with?
+
+It was not, and this was the worst case in the game. A train's collider is
+19.5 to 23 m of lane, and each one was authored from one specific carriage to
+the centimetre -- `OBS_TrainCar_01` is Metro A's 2.85 x 3.15 x 21 m,
+`OBS_TrainMoving_01` is Express A's 2.86 x 3.18 x 23. The factory then picked
+which of six carriages to build from a hash of the seed. Measured over forty
+seeds, 36 built art shorter than the collider. The worst was a fourteen-metre
+engineering unit standing in for a twenty-three metre express: 8.3 m of lane
+that kills you and cannot be seen.
+
+The art-against-collider check added with the obstacle resize could not see
+it, and the reason is worth recording. That check compares the top and bottom
+of the art against the top and bottom of the collider, because the gap it was
+written for was vertical. Every one of these trains is tall enough. It is
+along the lane that they were short — the axis the player travels, and so the
+one where a generous collider stops being forgiving and becomes a hit from
+nothing.
+
+The variant is now chosen to fit the collider. Parked stock keeps its
+lead/middle variety, and the liveries no longer reachable as obstacles are
+still all over the neighbouring running lines, where nothing collides and any
+length is fine. The oncoming service is additionally always a lead unit: its
+cab, nose, headlights and destination display are modelled on the end that
+faces the player, so a middle unit arrived as a flat unlit wall.
+
+The new check runs forty seeds per train def, because the variant was a
+function of the seed and a single-seed check is exactly what missed this.
+
 ## Known limitations
 
 - The hero is measured from a reference photograph (see `HERO_PIPELINE.md`),
