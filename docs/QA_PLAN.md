@@ -1781,6 +1781,118 @@ recording, so all three were fixed instead. Art may overhang a collider —
 caps, roofs and signage do, and the check allows it — but it may not stop
 short of one.
 
+## The world was lit from the wrong side of the camera
+
+A reference recording came in with the note that the buildings needed to be
+clear. They were not, and no test said so, because every test this project has
+measures geometry or behaviour and none of them measures whether you can see
+the thing.
+
+The screenshots did. Photographed at 94 m and 194 m, the city was a band of
+near-black shapes against a pale sky, the trees were blobs with no internal
+value, and the runner was a silhouette with no readable arms. Sampling five
+horizontal bands of the frame put numbers on it: luminance ran 0.34 at the sky
+down to 0.12 in the foreground, and saturation sat at 0.29. The same bands of
+the reference ran 0.40 up to 0.60, saturation 0.46. The picture was getting
+darker toward the viewer where a readable one gets brighter.
+
+The cause was one line of geometry, repeated across seven zones. The camera
+looks along +Z. Every surface the player can see therefore points back at them
+— and every zone's sun sat at positive Z, ahead of the camera, lighting the far
+side of everything. The near wall of each building, each tree canopy and the
+runner's back took hemisphere fill and nothing else, which is exactly what a
+0.55 fill looks like.
+
+Moving the sun behind the camera in every zone fixed the direction; keeping it
+well off-axis kept each solid a lit side and a shaded one, which a key light
+pointing down the view axis would have destroyed. Then the ballast, which at
+this camera angle is most of the bottom half of the screen and was a
+grey-olive no light rescues: warmed and lightened, with the sleepers warmed
+with it so they still read against the bed, and its normal map strength cut
+because stone grain that was invisible on a dark bed is static on a bright one.
+Then exposure, 1.22 to 1.44.
+
+Measured after: the near track went 0.203 to 0.303 and the foreground 0.120 to
+0.241, and saturation landed at 0.44 against the reference's 0.46. The HUD
+contrast suite still passes 10/10, which was the thing most at risk from
+brightening the scene behind it.
+
+The lesson is the one this document keeps writing down: the test suite was
+green through all of it. 392 assertions, and not one of them could see.
+
+## The arms came up and the run got less visible
+
+The same recording asked for the hands to drive the run. The machinery already
+existed — an arm swing, an elbow bend, a flare term, a crossing term — so the
+work looked like turning numbers up.
+
+Folding the elbow from 64 degrees to a hundred did bring the hands up: they
+went from peaking 8.0 cm below the shoulders to 3.7 cm above, which is the
+carriage the reference has. But measuring the rest of it showed the fold had
+cost something. The hand's lateral sweep fell from 24.4 cm to 21.4, and its
+fore-aft sweep from 54.7 to 31.4. A folded arm keeps its hand near its own
+shoulder, so the hand simply had less room to travel. The arms had come up and
+the run had got *less* visible from the only angle the game is played at.
+
+Putting the travel back needed the whole folded arm to rotate about the
+shoulder, and the sign of that term is not guessable. In phase with the elbow
+flare the two cancel: that reading measured 13.6 cm across, worse than not
+doing it at all. Against the swing they add. A sweep of the coefficient gave
+-0.30 at 36.5 cm, -0.42 at 39.6, -0.55 at 42.7 — with the vertical pump falling
+from 26.8 to 24.0 across that range, because past a point the extra width is
+bought out of the lift. -0.42 is where both are good.
+
+Four assertions hold it now: the hands travel across, they pump vertically,
+they reach the shoulders, and they never reach the chest. Each was proven
+capable of failing before being trusted — unfolding the elbow drops the hands
+to 14.7 cm below the shoulders, removing the shoulder sweep collapses the
+lateral travel, and sweeping inward hard puts a hand 5.5 cm from the chest
+axis. The chest-clearance one took two attempts to break: the first sabotage
+swung the arm the wrong way and the guard correctly stayed green.
+
+## The track was most of the triangles, and all of it was invisible bevel
+
+Looking for the frame-rate consistency the recording showed, the cheapest
+thing to do first was ask what the scene is actually made of. Walking the
+streamed track root at 600 m and attributing every mesh to its nearest named
+ancestor: 884k triangles, of which `TRK_Straight` was 598k. The track was more
+expensive than everything else in the world put together.
+
+One 24 m module broke down as 66.5k triangles across three instanced meshes:
+228 rail chairs at 128 triangles each, 114 sleepers at 192, and 76 more
+sleepers at 192 on the neighbouring running lines. All three come from
+`roundedBox`, which sweeps sixteen ways round regardless of how big the box is.
+A rail chair is 16 cm across with a 1.5 cm radius, seen from a camera 3.3 m up
+and at least 3 m back. The bevel it was paying 128 triangles for is a fraction
+of a pixel.
+
+`roundedBox` gained a `radialSegments` argument defaulting to 16, so nothing
+else in the game changed. The sleeper takes an eight-sided sweep at one step
+(64 triangles) and the chair becomes a plain box (12). The module goes to
+15.7k and the scene to 325k — 63% less to draw under every metre of every run,
+with nothing visible given up.
+
+A budget test now holds every track variant and the two geometries by name,
+and was proven by putting the old sweeps back: the module returns to 66.8k,
+the sleeper to 192 and the chair to 128, and all three guards fire.
+
+## What a screenshot harness has to do that this one could not
+
+Photographing an oncoming train turned out to be harder than changing one.
+Under the software rasteriser this environment uses, the page renders at about
+0.35 frames a second and the simulation advances roughly 1.7 m per rendered
+frame, so a run covers 70 m in two minutes. A train encounter crosses any
+given range band in about two seconds of game time. A harness that waits for a
+condition and then takes a screenshot photographs a frame several seconds
+later, which is a frame with no train in it.
+
+The fix is to decide inside the page and freeze: a hook watches every frame and
+pauses the game the instant the band is entered, and the harness then waits on
+the pause flag. The screenshot is of the frame that satisfied the condition
+rather than of a later one. This is the same class of bug as every fixed-wait
+in this project's history, one step further in — the wait was already paced off
+simulation state, and that still was not enough.
+
 ## Known limitations
 
 - The hero is measured from a reference photograph (see `HERO_PIPELINE.md`),

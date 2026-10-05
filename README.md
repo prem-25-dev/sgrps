@@ -89,8 +89,12 @@ CI runs all of these on every push and pull request
 - **A fairness engine** — every generated pattern is proved survivable by a
   breadth-first search over the player's state space before it spawns, with a
   guaranteed reaction window. The generator cannot kill you.
-- **Seven zones**, 44 segment templates, 33 obstacle archetypes, 6 train
+- **Seven zones**, 49 segment templates, 33 obstacle archetypes, 6 train
   variants, 48 props, 8 vehicles, 8 plant types, 12 coin patterns.
+- **A service running the other way** down the road you are on, closing at
+  1.55x your own speed with a roof that is not a route — six templates cover
+  all three roads, a blocked side, and a pair leaving only the middle. Every
+  one is proved survivable before it ships.
 - **5 power-ups**, combos and multipliers, near-miss scoring, 15 missions,
   12 achievements, persistent progression.
 - **A first-run tutorial** that teaches by asking rather than blocking — the

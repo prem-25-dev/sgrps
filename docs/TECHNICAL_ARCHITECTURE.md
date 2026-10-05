@@ -267,8 +267,39 @@ looped on step one forever. `npm run test:tutorial` covers it.
   distance and particle counts; sustained slow frames drop quality
   automatically.
 
+- The permanent way is budgeted, because it is laid under every metre of every
+  run and so whatever it costs is paid continuously and on every device. It was
+  the most expensive thing in the game: 66.5k triangles to the 24 m module,
+  598k of the 884k in view at 600 m, nearly all of it bevel on parts too small
+  to show one — a 2 cm radius on a 2.05 m sleeper and 1.5 cm on a 16 cm rail
+  chair, both swept sixteen ways round, 304 of them to the module. A sleeper is
+  now an eight-sided sweep and a chair a plain box: 15.7k to the module, 325k
+  in the scene. `test-geometry` holds the budget on every track variant and on
+  those two geometries by name.
+
 Measured at 1280×720: ~183 draw calls in typical play, ~300k triangles,
 plateauing object counts over 20 km.
+
+## Lighting
+
+The camera looks along +Z, so every surface the player can see points back at
+them. The key light therefore has to sit **behind** the camera — negative Z in
+each zone's `sun.position` — or it lands on the far wall of every building, the
+tops of the trees and the runner's chest, none of which is on screen. It used
+to sit ahead, and the picture got darker toward the viewer: measured across
+horizontal bands of a city-edge frame, 0.34 luminance at the sky down to 0.12
+in the foreground, where a readable one gets brighter.
+
+The sun stays well off-axis so each solid keeps a lit side and a shaded one; a
+key pointing straight down the view axis flattens everything into stickers. The
+fill is the opposite side at low intensity, which makes it a rim light rather
+than a second key.
+
+Ballast is the other half of it. At this camera angle it is most of the bottom
+half of the screen, so its value is the picture's value, and no amount of light
+rescues a grey-olive bed. It is warm and light now, the sleepers warm with it
+so they still read against it, and its normal map strength came down because
+stone grain that was invisible on a dark bed is static on a bright one.
 
 ## Audio
 

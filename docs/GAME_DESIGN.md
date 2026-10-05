@@ -107,7 +107,14 @@ Every obstacle teaches one verb, and its geometry tells you which:
 - **Trains** — parked stock blocks a lane entirely, and the two parked cars
   have roofs that are a route. `OBS_TrainMoving_01` is a service running the
   other way: it closes at 1.55x the player's own speed and its roof is not a
-  route, so the only answer is to be out of its lane in time.
+  route, so the only answer is to be out of its lane in time. It is the hazard
+  the game is built around and it is meant to be met often — six templates
+  carry it, about 16% of the segment table, which measures as one every ~180 m
+  across five seeds. They cover all three roads (the right-hand one was missing
+  entirely, so a player who always broke right was never once wrong), the
+  middle road with one side already blocked so the escape has a side to it, and
+  a pair either side leaving only the middle. The solver still has to agree a
+  route exists before any of them ships.
 - **Dynamic** — trolleys, drums, swinging signs, sliding barriers, falling
   crates. The generator opens moving hazards at 0.45 difficulty, but every
   dynamic archetype carries its own gate of 0.55 or higher, so none can appear
@@ -251,6 +258,12 @@ what happens to a copy embedded in a frame that was not granted the permission.
 - The runner's form changes over a long run: an effort layer folds him
   forward, costs him knee drive and puts the work into his shoulders and arms.
   It never touches cadence, which stays locked to ground speed.
+- The run is carried by the arms. The elbow folds to about a hundred degrees,
+  which brings the hands up to the shoulders, and the whole folded arm rotates
+  about the shoulder so the hands sweep across the screen rather than along the
+  one axis a rear camera cannot see. Measured at 12 m/s: 39.6 cm across, 25.5 cm
+  vertically, hands peaking 2.3 cm above the shoulders and never closer than
+  27.6 cm to the chest.
 
 ## The runner
 
