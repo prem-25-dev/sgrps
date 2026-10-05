@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CFG } from '../core/Config';
-import { mergeGeometries, place, Ring, roundedBox, sweep } from './GeometryUtil';
+import { mergeByMaterial, mergeGeometries, place, Ring, roundedBox, sweep } from './GeometryUtil';
 import { material, MaterialId } from './MaterialLibrary';
 
 /**
@@ -401,30 +401,43 @@ export function buildTrain(
   const group = new THREE.Group();
   group.name = `${variant}_${role}`;
 
+  // Everything that never moves goes into `body` and is collapsed to one mesh
+  // per material; only the door leaves and their glass stay separate, because
+  // they slide. A full Metro carriage was 105 meshes and therefore 105 draw
+  // calls, of which 24 were doors -- so the carriage was paying eighty-odd
+  // draws for a shell, a frame, two bogies, some windows and a roof kit that
+  // between them use a handful of materials. Every geometry here is built
+  // fresh per carriage (nothing is cached across calls), so the merge is free
+  // to dispose what it consumes.
+  const body = new THREE.Group();
+
   const taperFront = role === 'lead' && spec.cab;
   const taperRear = role === 'tail' && spec.cab;
 
   const shell = new THREE.Mesh(bodyShell(spec, taperFront, taperRear), material(spec.body));
   shell.castShadow = true;
   shell.receiveShadow = true;
-  group.add(shell);
+  body.add(shell);
 
   const frame = new THREE.Mesh(underframe(spec), material(spec.skirt));
   frame.castShadow = true;
-  group.add(frame);
+  body.add(frame);
 
   for (const z of [-spec.length / 2 + 3.2, spec.length / 2 - 3.2]) {
     const b = bogie();
     b.position.z = z;
-    group.add(b);
+    body.add(b);
   }
 
   const scenery = detail === 'scenery';
-  if (spec.interior && !scenery) addInterior(group, spec);
-  if (spec.windows) addWindows(group, spec);
+  if (spec.interior && !scenery) addInterior(body, spec);
+  if (spec.windows) addWindows(body, spec);
+  // The doors go on the carriage itself, outside the merge.
   const doors = addDoors(group, spec, scenery);
-  if (!scenery) addRoofKit(group, spec);
-  addLightsAndLivery(group, spec);
+  if (!scenery) addRoofKit(body, spec);
+  addLightsAndLivery(body, spec);
+
+  group.add(mergeByMaterial(body));
 
   let doorPhase = 0;
   let doorTarget = 0;

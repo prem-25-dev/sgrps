@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ringXZ, sweep, Ring } from '../src/assets/GeometryUtil';
 import { buildTrackModule, fixingGeometry, sleeperGeometry, TRACK_VARIANTS } from '../src/assets/TrackFactory';
+import { buildTrain, TRAIN_VARIANTS } from '../src/assets/TrainFactory';
 import { createHero } from '../src/assets/HeroFactory';
 import { DEFAULT_IDENTITY } from '../src/assets/HeroIdentity';
 
@@ -268,6 +269,48 @@ console.log('\nWhat the permanent way costs:');
     `${count(sleeperGeometry())} triangles`);
   check('a rail chair is cheap enough to lay 228 of per module', count(fixingGeometry()) <= 24,
     `${count(fixingGeometry())} triangles`);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\nWhat a carriage costs, and what still has to move:');
+{
+  // A carriage is static except for its doors, which slide. Everything else
+  // merges to one mesh per material; a full Metro carriage was 105 meshes and
+  // so 105 draw calls, of which only 24 were doors. The rest was a shell, a
+  // frame, two bogies, windows and a roof kit between them using a handful of
+  // materials, each paying for its own draw.
+  //
+  // The second check is the one that matters. A merge that swallowed the doors
+  // would look like a win here and would quietly stop the doors working, which
+  // is the kind of thing that shows up as a still frame in a station rather
+  // than as a failure.
+  let worst = 0, worstName = '';
+  for (const variant of TRAIN_VARIANTS) {
+    const train = buildTrain(variant, 'lead');
+    let meshes = 0;
+    train.object.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes++; });
+    if (meshes > worst) { worst = meshes; worstName = variant; }
+  }
+  check('a carriage draws in tens rather than hundreds', worst <= 55,
+    `${worstName} is ${worst} meshes`);
+  console.log(`  dearest carriage: ${worstName} at ${worst} meshes`);
+
+  const train = buildTrain('TRN_Metro_A', 'lead');
+  const leafZ = () => {
+    const out: number[] = [];
+    train.object.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && m.parent === train.object) out.push(m.position.z);
+    });
+    return out;
+  };
+  const closed = leafZ();
+  train.doors.set(1);
+  const open = leafZ();
+  const travel = Math.max(...closed.map((z, i) => Math.abs(open[i] - z)));
+  const moving = closed.filter((z, i) => Math.abs(open[i] - z) > 1e-6).length;
+  check('the doors survived the merge and still slide', moving === closed.length && travel > 0.6,
+    `${moving}/${closed.length} leaves moved, max travel ${travel.toFixed(3)} m`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
