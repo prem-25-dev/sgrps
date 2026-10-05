@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OBSTACLE_BY_ID } from '../../data/obstacles';
 import { hash01, mergeByMaterial, place, roundedBox } from '../assets/GeometryUtil';
 import { decal, material } from '../assets/MaterialLibrary';
-import { buildTrain, TrainVariant } from '../assets/TrainFactory';
+import { buildTrain, trainVariantFor } from '../assets/TrainFactory';
 import { ObstacleDef } from '../core/Types';
 
 /**
@@ -409,9 +409,20 @@ export function buildObstacleMesh(def: ObstacleDef, seed = 1): THREE.Group {
       break;
     }
     case 'train': {
-      const variants: TrainVariant[] = ['TRN_Metro_A', 'TRN_Metro_B', 'TRN_Metro_C', 'TRN_Express_A', 'TRN_Freight_A', 'TRN_Service_A'];
-      const variant = variants[Math.floor(hash01(seed) * variants.length) % variants.length];
-      const train = buildTrain(variant, hash01(seed * 3) > 0.5 ? 'lead' : 'middle');
+      // The variant is chosen to fit the collider rather than at random: see
+      // `trainVariantFor`. The liveries the player never meets as an obstacle
+      // are still all over the neighbouring lines, where nothing collides and
+      // any length is fine.
+      const variant = trainVariantFor(def.width, def.height, def.depth);
+      // A service running the other way is always a lead unit. The cab, its
+      // nose and its headlights are modelled on the -Z end, which is the end
+      // facing the player -- so a middle unit would come at them as a flat
+      // wall with no lights, which is both uglier and harder to read as the
+      // thing that is about to arrive.
+      const role = def.id === 'OBS_TrainMoving_01'
+        ? 'lead'
+        : hash01(seed * 3) > 0.5 ? 'lead' : 'middle';
+      const train = buildTrain(variant, role);
       g.add(train.object);
       g.userData.train = train;
       break;

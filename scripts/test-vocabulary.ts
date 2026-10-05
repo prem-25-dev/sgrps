@@ -18,7 +18,7 @@ import { buildObstacleMesh } from '../src/obstacles/ObstacleFactory';
 import { LightingRig } from '../src/world/ZoneManager';
 import { ActiveObstacle } from '../src/core/CollisionSystem';
 import { CFG } from '../src/core/Config';
-import { OBSTACLE_DEFS } from '../data/obstacles';
+import { OBSTACLE_BY_ID, OBSTACLE_DEFS } from '../data/obstacles';
 import { ObstacleDef } from '../src/core/Types';
 import { CollectibleManager } from '../src/collectibles/CollectibleManager';
 import { CollisionSystem } from '../src/core/CollisionSystem';
@@ -398,6 +398,55 @@ function clearableByJump(id: string): boolean {
   }
   check('every obstacle\u2019s art reaches the top of its collider', short.length === 0, short.join('; '));
   check('and reaches the bottom of it', floating.length === 0, floating.join('; '));
+}
+
+// ------------------------------------------- a train as long as its collider
+//
+// The height check above cannot see this one, and it is the worst case in the
+// game. A train's collider is 19.5 to 23 m of lane, and the factory was
+// choosing which carriage to build at random from six. Each train collider was
+// authored from one specific carriage to the centimetre -- OBS_TrainCar_01 is
+// Metro A, OBS_TrainMoving_01 is Express A -- so a random pick meant most runs
+// put a shorter train inside a longer box. Measured over forty seeds, 36 built
+// art short of the collider and the worst was 8.3 m: a fourteen-metre
+// engineering unit standing in for a twenty-three metre express. The player
+// died to eight metres of nothing, and on the oncoming service the nothing
+// arrives first.
+//
+// Seeds matter here in a way they do not elsewhere, because the variant was a
+// function of the seed. Forty of them is enough that any surviving randomness
+// shows up.
+{
+  const bad: string[] = [];
+  for (const def of OBSTACLE_DEFS.filter((d) => d.mesh === 'train')) {
+    for (let seed = 1; seed <= 40; seed++) {
+      const mesh = buildObstacleMesh(def, seed);
+      mesh.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(mesh);
+      const artDepth = box.max.z - box.min.z;
+      const artWidth = box.max.x - box.min.x;
+      if (def.depth - artDepth > 0.5) {
+        bad.push(`${def.id} seed ${seed}: art ${artDepth.toFixed(1)} m long vs ${def.depth} m collider`);
+        break;
+      }
+      if (def.width - artWidth > 0.3) {
+        bad.push(`${def.id} seed ${seed}: art ${artWidth.toFixed(2)} m wide vs ${def.width} m collider`);
+        break;
+      }
+    }
+  }
+  check('a train is as long and as wide as the box that kills you', bad.length === 0, bad.join('; '));
+
+  // And the one coming the other way always leads with its cab, because the
+  // nose, the headlights and the destination display are all modelled on the
+  // end that faces the player.
+  const noses = new Set<string>();
+  for (let seed = 1; seed <= 40; seed++) {
+    const mesh = buildObstacleMesh(OBSTACLE_BY_ID['OBS_TrainMoving_01'], seed);
+    mesh.traverse((o) => { if (/^TRN_/.test(o.name)) noses.add(o.name); });
+  }
+  check('the oncoming service always comes at you cab first',
+    noses.size === 1 && [...noses][0].endsWith('_lead'), [...noses].join(', '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

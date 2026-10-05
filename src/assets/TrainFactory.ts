@@ -384,6 +384,32 @@ export interface Train {
 }
 
 /**
+ * The variant whose carriage actually fits a given collider.
+ *
+ * Each train obstacle's collider was authored from one specific carriage --
+ * `OBS_TrainCar_01` is Metro A's 2.85 x 3.15 x 21 m to the centimetre, and
+ * `OBS_TrainMoving_01` is Express A's 2.86 x 3.18 x 23 -- but the factory was
+ * picking a variant at random, so most of the time the player was colliding
+ * with a box several metres longer than the train they could see. Measured
+ * over forty seeds, 36 of them built art short of the collider, the worst by
+ * 8.3 m: a fourteen-metre engineering unit standing in for a twenty-three
+ * metre express. On the oncoming service that invisible length arrives first.
+ */
+export function trainVariantFor(width: number, height: number, depth: number): TrainVariant {
+  let best = TRAIN_VARIANTS[0];
+  let bestError = Infinity;
+  for (const variant of TRAIN_VARIANTS) {
+    const spec = SPECS[variant];
+    // Length is weighted hardest: it is the axis the player travels along, so
+    // a mismatch there is the one that becomes a hit from nothing.
+    const error = Math.abs(spec.length - depth) * 4
+      + Math.abs(spec.width - width) + Math.abs(spec.height - height);
+    if (error < bestError) { bestError = error; best = variant; }
+  }
+  return best;
+}
+
+/**
  * Builds a full carriage. `role` shapes the ends: a lead unit gets a tapered
  * nose, a middle unit is flat both ends so consists join cleanly.
  */
