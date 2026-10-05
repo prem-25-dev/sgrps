@@ -107,8 +107,11 @@ Every obstacle teaches one verb, and its geometry tells you which:
 - **Trains** — parked stock blocks a lane entirely, and the two parked cars
   have roofs that are a route. `OBS_TrainMoving_01` is a service running the
   other way: it closes at 1.55x the player's own speed and its roof is not a
-  route, so the only answer is to be out of its lane in time. It is the hazard
-  the game is built around and it is meant to be met often — six templates
+  route, so the only answer is to be out of its lane in time. It wears a
+  high-visibility livery that nothing else on the line wears, because the
+  player has to tell a lane that is closing from a lane that is merely blocked
+  at a distance and in a quarter of a second, and it always arrives cab first.
+  It is the hazard the game is built around and it is meant to be met often — six templates
   carry it, about 16% of the segment table, which measures as one every ~180 m
   across five seeds. They cover all three roads (the right-hand one was missing
   entirely, so a player who always broke right was never once wrong), the

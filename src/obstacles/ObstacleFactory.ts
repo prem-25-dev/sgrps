@@ -413,7 +413,13 @@ export function buildObstacleMesh(def: ObstacleDef, seed = 1): THREE.Group {
       // `trainVariantFor`. The liveries the player never meets as an obstacle
       // are still all over the neighbouring lines, where nothing collides and
       // any length is fine.
-      const variant = trainVariantFor(def.width, def.height, def.depth);
+      // The oncoming service has its own carriage, in a livery that says it is
+      // moving: everything else on the line is a lane that is blocked, and
+      // this is a lane that is closing. It carries the same dimensions, so it
+      // fills the collider exactly as the one it replaces did.
+      const variant = def.id === 'OBS_TrainMoving_01'
+        ? 'TRN_Service_B'
+        : trainVariantFor(def.width, def.height, def.depth);
       // A service running the other way is always a lead unit. The cab, its
       // nose and its headlights are modelled on the -Z end, which is the end
       // facing the player -- so a middle unit would come at them as a flat

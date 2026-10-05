@@ -18,9 +18,25 @@ export type TrainVariant =
   | 'TRN_Metro_C'
   | 'TRN_Freight_A'
   | 'TRN_Service_A'
+  | 'TRN_Service_B'
   | 'TRN_Express_A';
 
+/**
+ * Every carriage that exists. This is the catalogue, not a selection list:
+ * `AMBIENT_TRAIN_VARIANTS` is what traffic on the neighbouring lines draws
+ * from, and obstacles pick by collider through `trainVariantFor`.
+ */
 export const TRAIN_VARIANTS: TrainVariant[] = [
+  'TRN_Metro_A', 'TRN_Metro_B', 'TRN_Metro_C', 'TRN_Freight_A', 'TRN_Service_A',
+  'TRN_Service_B', 'TRN_Express_A',
+];
+
+/**
+ * What runs on the neighbouring lines. `TRN_Service_B` is deliberately absent:
+ * its livery is the player's cue that a lane is closing rather than blocked,
+ * and a cue that also turns up as background traffic is not a cue.
+ */
+export const AMBIENT_TRAIN_VARIANTS: TrainVariant[] = [
   'TRN_Metro_A', 'TRN_Metro_B', 'TRN_Metro_C', 'TRN_Freight_A', 'TRN_Service_A', 'TRN_Express_A',
 ];
 
@@ -75,6 +91,17 @@ const SPECS: Record<TrainVariant, TrainSpec> = {
     body: 'MAT_BrushedAlu', skirt: 'MAT_TrainSkirt', roof: 'MAT_TrainRoof', accent: 'MAT_Neon',
     length: 23, width: 2.86, height: 3.18, corner: 0.6, windows: true, doors: 2,
     interior: true, cab: true, roofKit: 'pantograph', label: 'EXPRESS  ·  AIRPORT',
+  },
+  // The service that runs against the traffic, and the only stock the player
+  // ever meets head-on. It carries Express A's dimensions to the centimetre
+  // because `OBS_TrainMoving_01`'s collider was authored from them, and a
+  // high-visibility livery because the player has to tell it apart from parked
+  // stock at a distance and in a quarter of a second. Everything else on the
+  // line is a lane that is blocked; this is a lane that is closing.
+  TRN_Service_B: {
+    body: 'MAT_SafetyYellow', skirt: 'MAT_PaintedMetalDark', roof: 'MAT_PaintedMetal', accent: 'MAT_HazardStripe',
+    length: 23, width: 2.86, height: 3.18, corner: 0.6, windows: true, doors: 2,
+    interior: true, cab: true, roofKit: 'vents', label: 'NOT IN SERVICE',
   },
 };
 
@@ -396,9 +423,9 @@ export interface Train {
  * metre express. On the oncoming service that invisible length arrives first.
  */
 export function trainVariantFor(width: number, height: number, depth: number): TrainVariant {
-  let best = TRAIN_VARIANTS[0];
+  let best = AMBIENT_TRAIN_VARIANTS[0];
   let bestError = Infinity;
-  for (const variant of TRAIN_VARIANTS) {
+  for (const variant of AMBIENT_TRAIN_VARIANTS) {
     const spec = SPECS[variant];
     // Length is weighted hardest: it is the axis the player travels along, so
     // a mismatch there is the one that becomes a hit from nothing.

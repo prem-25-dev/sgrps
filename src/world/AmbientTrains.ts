@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SIDE_LINE_X } from '../assets/TrackFactory';
-import { buildTrain, Train, TRAIN_VARIANTS, TrainVariant } from '../assets/TrainFactory';
+import { AMBIENT_TRAIN_VARIANTS, buildTrain, Train, TrainVariant } from '../assets/TrainFactory';
 import { mergeByMaterial } from '../assets/GeometryUtil';
 import { CFG } from '../core/Config';
 import { KeyedPool } from '../core/ObjectPool';
@@ -127,7 +127,7 @@ export class AmbientTrains {
     const side: -1 | 1 = this.rng.next() < 0.5 ? -1 : 1;
     // Left-hand running: the near line goes with you, the far line comes back.
     const departing = side === -1;
-    const variant = TRAIN_VARIANTS[this.rng.int(0, TRAIN_VARIANTS.length)];
+    const variant = AMBIENT_TRAIN_VARIANTS[this.rng.int(0, AMBIENT_TRAIN_VARIANTS.length)];
     const cars = this.rng.int(MIN_CARS, MAX_CARS + 1);
 
     const group = new THREE.Group();

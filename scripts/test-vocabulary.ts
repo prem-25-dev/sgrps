@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three';
 import { buildObstacleMesh } from '../src/obstacles/ObstacleFactory';
+import { AMBIENT_TRAIN_VARIANTS } from '../src/assets/TrainFactory';
 import { LightingRig } from '../src/world/ZoneManager';
 import { ActiveObstacle } from '../src/core/CollisionSystem';
 import { CFG } from '../src/core/Config';
@@ -447,6 +448,16 @@ function clearableByJump(id: string): boolean {
   }
   check('the oncoming service always comes at you cab first',
     noses.size === 1 && [...noses][0].endsWith('_lead'), [...noses].join(', '));
+
+  // And it is the only thing wearing the warning livery. The player has a
+  // quarter of a second to tell a lane that is closing from a lane that is
+  // merely blocked, and the livery is how: a cue that also turns up as
+  // background traffic on the neighbouring lines is not a cue.
+  check('and wears a livery nothing else on the line wears',
+    [...noses][0].startsWith('TRN_Service_B'), [...noses].join(', '));
+  check('the warning livery never runs as ordinary traffic',
+    !AMBIENT_TRAIN_VARIANTS.includes('TRN_Service_B'),
+    AMBIENT_TRAIN_VARIANTS.join(', '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
