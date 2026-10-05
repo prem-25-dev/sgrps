@@ -43,27 +43,27 @@ export const GAITS: Record<string, GaitParams> = {
   },
   walk: {
     cadence: 0.92, hipSwing: 0.42, hipMid: 0.06, kneeSwing: 0.62, kneeStance: 0.12,
-    ankleSwing: 0.22, armSwing: 0.28, elbowBend: 0.30, elbowPump: 0.10, lean: 0.04,
+    ankleSwing: 0.22, armSwing: 0.28, elbowBend: 0.40, elbowPump: 0.10, lean: 0.04,
     bob: 0.022, pelvisTwist: 0.07, chestTwist: 0.09, shoulderRoll: 0.03, crouch: 0.01,
   },
   jog: {
     cadence: 1.34, hipSwing: 0.62, hipMid: 0.20, kneeSwing: 0.95, kneeStance: 0.24,
-    ankleSwing: 0.32, armSwing: 0.55, elbowBend: 0.85, elbowPump: 0.24, lean: 0.10,
+    ankleSwing: 0.32, armSwing: 0.58, elbowBend: 1.34, elbowPump: 0.30, lean: 0.10,
     bob: 0.038, pelvisTwist: 0.12, chestTwist: 0.16, shoulderRoll: 0.05, crouch: 0.02,
   },
   run: {
     cadence: 1.58, hipSwing: 0.82, hipMid: 0.34, kneeSwing: 1.22, kneeStance: 0.32,
-    ankleSwing: 0.42, armSwing: 0.78, elbowBend: 1.12, elbowPump: 0.34, lean: 0.16,
+    ankleSwing: 0.42, armSwing: 0.86, elbowBend: 1.78, elbowPump: 0.42, lean: 0.16,
     bob: 0.05, pelvisTwist: 0.16, chestTwist: 0.24, shoulderRoll: 0.07, crouch: 0.03,
   },
   fastRun: {
     cadence: 1.74, hipSwing: 0.95, hipMid: 0.40, kneeSwing: 1.42, kneeStance: 0.36,
-    ankleSwing: 0.48, armSwing: 0.92, elbowBend: 1.25, elbowPump: 0.40, lean: 0.22,
+    ankleSwing: 0.48, armSwing: 1.00, elbowBend: 1.90, elbowPump: 0.48, lean: 0.22,
     bob: 0.058, pelvisTwist: 0.19, chestTwist: 0.29, shoulderRoll: 0.08, crouch: 0.036,
   },
   sprint: {
     cadence: 1.92, hipSwing: 1.12, hipMid: 0.46, kneeSwing: 1.62, kneeStance: 0.40,
-    ankleSwing: 0.55, armSwing: 1.08, elbowBend: 1.38, elbowPump: 0.46, lean: 0.30,
+    ankleSwing: 0.55, armSwing: 1.16, elbowBend: 2.02, elbowPump: 0.54, lean: 0.30,
     bob: 0.064, pelvisTwist: 0.22, chestTwist: 0.34, shoulderRoll: 0.09, crouch: 0.042,
   },
 };
@@ -213,16 +213,29 @@ export function locomotion(phase: number, gait: GaitParams, out: Pose): Pose {
     // does anyway.
     const arm = gait.hipMid * 0.3 - gait.armSwing * Math.sin(sp * TAU);
     const elbow = gait.elbowBend + gait.elbowPump * Math.max(0, Math.sin(sp * TAU + Math.PI));
-    const flare = 0.1 + gait.armSwing * 0.06 + gait.armSwing * 0.30 * Math.max(0, Math.sin(sp * TAU));
+    const flare = 0.34 + gait.armSwing * 0.08 + gait.armSwing * 0.42 * Math.sin(sp * TAU);
     // A running arm does not swing in a plane: the elbow stays out while the
     // hand tracks across toward the sternum at the front of the swing and
-    // away from it at the back. Driving that on the forearm's yaw rather
-    // than the shoulder's keeps the elbow flare — which is what makes the
-    // motion visible from directly behind — and adds the crossing on top of
-    // it, so the hand sweeps a wider arc across the screen than either does
-    // alone.
-    const cross = gait.armSwing * 0.42 * Math.sin(sp * TAU);
-    out.set(`upperArm_${name}`, arm, side * gait.chestTwist * 0.3, side * flare);
+    // away from it at the back. The forearm's yaw carries the crossing, and
+    // the shoulder's yaw — `sweepIn` above — carries the hand across.
+    //
+    // That second term is the one that matters from the gameplay camera, and
+    // its sign is not guessable. Folding the elbow to a hundred degrees puts
+    // the hand up at shoulder height, which is the carriage this is after,
+    // but it also parks the hand close to its own shoulder: measured, the
+    // fold alone cut the hand's lateral sweep from 24.4 cm to 21.4 and its
+    // fore-aft sweep from 54.7 to 31.4, so the arms went up and the run got
+    // *less* visible from behind. Rotating the whole folded arm about the
+    // shoulder is what puts the travel back, and in phase with the flare the
+    // two cancel — that reading measured 13.6 cm, worse than doing nothing.
+    // Against the swing it adds: -0.42 measures 39.6 cm across and 25.5 cm
+    // vertically, with the hand peaking 2.3 cm above the shoulder and never
+    // closer than 27.6 cm to the chest axis, so nothing clips. Larger values
+    // buy more width and spend it on the vertical pump: -0.55 reaches 42.7 cm
+    // across but drops to 24.0 cm of lift.
+    const cross = gait.armSwing * 0.72 * Math.sin(sp * TAU);
+    const sweepIn = gait.armSwing * -0.42 * Math.sin(sp * TAU);
+    out.set(`upperArm_${name}`, arm, side * (gait.chestTwist * 0.3 + sweepIn), side * flare);
     out.set(`forearm_${name}`, elbow, -side * cross, side * 0.12);
     out.set(`hand_${name}`, 0.1, -side * cross * 0.5, side * 0.16);
     out.set(`shoulder_${name}`, gait.shoulderRoll * Math.sin(sp * TAU), 0, side * gait.shoulderRoll);

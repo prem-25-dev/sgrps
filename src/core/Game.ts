@@ -108,7 +108,14 @@ export class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.22;
+    // ACES rolls the highlights off hard, so a daylight scene needs to be
+    // driven above 1.0 before it reads as daylight rather than as overcast.
+    // Measured across horizontal bands of a city-edge frame, 1.22 put the
+    // near track at 0.30 luminance; the look this is aiming at sits near 0.59
+    // there. This does not close that gap on its own — the ballast and the
+    // key light direction did most of it — but it is the last of the three
+    // and the one that lifts the shadowed side of everything at once.
+    this.renderer.toneMappingExposure = 1.44;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
 

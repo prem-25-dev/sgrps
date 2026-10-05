@@ -75,9 +75,17 @@ export class LightingRig {
     this.ambient = new THREE.HemisphereLight(0xbfd4e6, 0x30302c, 1.0);
     scene.add(this.ambient);
 
-    // A cool rim from behind separates the hero from the background.
-    this.fill = new THREE.DirectionalLight(0x9fc2ff, 0.55);
-    this.fill.position.set(26, 18, -34);
+    // A cool rim from the far side separates every solid from the sky.
+    //
+    // This used to sit behind the camera and was the only thing lighting the
+    // surfaces the player can actually see, which is why it was reaching for a
+    // job a 0.55 fill cannot do. Now that the key is behind the camera, the
+    // fill moves to the opposite side and goes back to being a rim: it catches
+    // the far edge of a building or the runner's shoulder and leaves a bright
+    // line between them and whatever is behind, so the scene keeps depth
+    // instead of flattening into one evenly-lit plane.
+    this.fill = new THREE.DirectionalLight(0xaecdff, 0.5);
+    this.fill.position.set(22, 20, 38);
     scene.add(this.fill);
 
     // The oncoming service train's headlight.

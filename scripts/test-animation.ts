@@ -288,9 +288,37 @@ console.log('\nWhat the gameplay camera can actually see:');
   for (let i = 0; i < 60; i++) animator.update(1 / 60, ctx());
   const run = travel(['hand_L', 'hips'], 120, () => animator.update(1 / 60, ctx()));
   const handX = run.get('hand_L')!.x;
+  const handY = run.get('hand_L')!.y;
   const hipX = run.get('hips')!.x;
-  check('the hands swing across the body, not only along it', handX > 0.18,
+  check('the hands swing across the body, not only along it', handX > 0.32,
     `hand travelled ${(handX * 100).toFixed(0)} cm across at 12 m/s`);
+  check('the hands pump rather than trail', handY > 0.20,
+    `hand travelled ${(handY * 100).toFixed(0)} cm vertically`);
+
+  // Where the hands are carried, not just how far they move. A run reads as a
+  // run from behind when the hands come up to the shoulders and drive; the
+  // same amplitude carried down by the hips reads as a jog, and that is the
+  // difference this measures. The clearance is the other half of it: folding
+  // the elbow this hard is what lifts the hands, and it is also what would
+  // put them through the chest if it went further.
+  const v2 = new THREE.Vector3();
+  const shoulderAt = new THREE.Vector3();
+  const chestAt = new THREE.Vector3();
+  let peakAboveShoulder = -Infinity;
+  let nearestChest = Infinity;
+  for (let i = 0; i < 120; i++) {
+    animator.update(1 / 60, ctx());
+    hero.object.updateMatrixWorld(true);
+    hero.rig.byName.get('hand_L')!.getWorldPosition(v2);
+    hero.rig.byName.get('shoulder_L')!.getWorldPosition(shoulderAt);
+    hero.rig.byName.get('chest')!.getWorldPosition(chestAt);
+    peakAboveShoulder = Math.max(peakAboveShoulder, v2.y - shoulderAt.y);
+    nearestChest = Math.min(nearestChest, Math.hypot(v2.x - chestAt.x, v2.z - chestAt.z));
+  }
+  check('the hands come up to the shoulders', peakAboveShoulder > -0.02,
+    `hand peaked ${(peakAboveShoulder * 100).toFixed(1)} cm relative to the shoulder`);
+  check('the hands never reach the chest', nearestChest > 0.10,
+    `hand came within ${(nearestChest * 100).toFixed(1)} cm of the chest axis`);
   check('the pelvis sways onto each stance leg', hipX > 0.03,
     `hips travelled ${(hipX * 100).toFixed(0)} cm across`);
   console.log(`  running: hand ${(handX * 100).toFixed(0)} cm across, ` +

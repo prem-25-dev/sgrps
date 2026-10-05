@@ -256,25 +256,41 @@ const SPECS: Record<MaterialId, Spec> = {
   },
   MAT_Dirt: {
     color: 0xffffff, roughness: 0.98, metalness: 0.0,
-    map: { a: '#3b3129', b: '#6a5a45', period: 8, contrast: 1.2, repeat: 5, seed: 15 },
+    map: { a: '#6a5844', b: '#9c8663', period: 8, contrast: 1.2, repeat: 5, seed: 15 },
   },
   MAT_Gravel: {
     color: 0xffffff, roughness: 0.97, metalness: 0.0,
-    map: { a: '#3d3f42', b: '#7d7a74', period: 22, contrast: 2.0, repeat: 6, seed: 29 },
+    map: { a: '#6f6a5e', b: '#a9a496', period: 22, contrast: 1.8, repeat: 6, seed: 29 },
     normal: { strength: 3.0, repeat: 6, height: grain(30, 29, 2.0) },
   },
+  // Ballast is the floor the whole frame is built on: at the gameplay camera's
+  // angle it is most of the bottom half of the screen, so its value sets the
+  // value of the picture. It was a #4a4c44..#8d8a7c grey-olive, which rendered
+  // at 0.21 luminance and dragged everything standing on it down with it —
+  // measured across horizontal bands, this game got darker toward the viewer
+  // (0.34 sky to 0.12 foreground) where a readable runner gets brighter. A
+  // warm, light bed reverses that and gives the sleepers, the rails and the
+  // runner's own shadow something to read against.
   MAT_Ballast: {
     color: 0xffffff, roughness: 0.98, metalness: 0.02,
-    map: { a: '#4a4c44', b: '#8d8a7c', period: 26, contrast: 2.2, repeat: 8, seed: 31 },
-    normal: { strength: 3.6, repeat: 8, height: grain(34, 31, 2.2) },
+    map: { a: '#8a8463', b: '#c8c196', period: 26, contrast: 1.5, repeat: 6, seed: 31 },
+    // Softer than it was, and for a reason that only showed up once the bed was
+    // light: a 3.6-strength normal at repeat 8 was invisible on a dark surface
+    // and reads as static on a bright one. The stones still catch the light,
+    // but the bed stays a surface the eye can rest on rather than the busiest
+    // thing on screen.
+    normal: { strength: 1.9, repeat: 6, height: grain(34, 31, 2.2) },
   },
   MAT_RailSteel: {
     color: 0xffffff, roughness: 0.3, metalness: 0.92,
     map: { a: '#5a5f66', b: '#b9c2c9', period: 4, contrast: 1.1, repeat: 1, seed: 5 },
   },
+  // Creosoted timber, warm against the bed rather than another grey on grey:
+  // the sleepers are the only thing that gives the track a sense of speed, and
+  // they cannot do that if they are the same value as what they lie on.
   MAT_Sleeper: {
     color: 0xffffff, roughness: 0.92, metalness: 0.0,
-    map: { a: '#5d5a54', b: '#837f76', period: 7, contrast: 1.1, repeat: 1, seed: 47 },
+    map: { a: '#6d4a2c', b: '#a87b4e', period: 7, contrast: 1.2, repeat: 1, seed: 47 },
   },
   MAT_PlatformTile: {
     color: 0xffffff, roughness: 0.55, metalness: 0.05,
@@ -340,9 +356,13 @@ const SPECS: Record<MaterialId, Spec> = {
   MAT_SafetyOrange: { color: 0xe1621d, roughness: 0.62, metalness: 0.0 },
   MAT_SafetyYellow: { color: 0xe8bb18, roughness: 0.6, metalness: 0.05 },
   MAT_Cable: { color: 0x1a1c20, roughness: 0.8, metalness: 0.2 },
+  // Canopies read by saturation, not by brightness. Sampled off the look this
+  // is aiming at, foliage there is a #205020 green — no lighter than what was
+  // here, but far more saturated, which is why it stays a green shape against
+  // the sky instead of collapsing to the black blob this was rendering as.
   MAT_Foliage: {
     color: 0xffffff, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide,
-    map: { a: '#1d3b1f', b: '#4a7a35', period: 12, contrast: 1.4, repeat: 1, seed: 55 },
+    map: { a: '#1e4a20', b: '#57a338', period: 12, contrast: 1.4, repeat: 1, seed: 55 },
   },
   MAT_Bark: {
     color: 0xffffff, roughness: 0.95, metalness: 0.0,
@@ -350,7 +370,7 @@ const SPECS: Record<MaterialId, Spec> = {
   },
   MAT_Grass: {
     color: 0xffffff, roughness: 0.92, metalness: 0.0,
-    map: { a: '#2b4a24', b: '#557f30', period: 18, contrast: 1.3, repeat: 8, seed: 66 },
+    map: { a: '#2f5f27', b: '#64a736', period: 18, contrast: 1.3, repeat: 8, seed: 66 },
   },
   MAT_CoinGold: {
     color: 0xffc93c, roughness: 0.22, metalness: 1.0, emissive: 0xff9a1f, emissiveIntensity: 0.35,

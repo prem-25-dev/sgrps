@@ -4,6 +4,19 @@ import { ZoneDef } from '../../src/core/Types';
  * ZONE_* environment set. Zones change look, lighting and music, never the
  * rules of play — so a player who learns the game in the city edge is not
  * ambushed by different physics downtown.
+ *
+ * Every sun sits behind the camera (negative Z), and that is the whole reason
+ * the world reads. The camera looks along +Z, so the faces the player can see
+ * are the ones pointing back at them — and with the key light ahead, every one
+ * of those was turned away from it. The sun lit the far side of every building,
+ * the tops of the trees and the runner's chest, none of which is on screen,
+ * while the near wall, the canopy and the runner's back took nothing but
+ * hemisphere fill. Measured on the city edge at 94 m, the mean luminance of the
+ * building band was 0.14 and the runner was a 0.07 silhouette against 0.45 of
+ * sky. Moving the sun behind the camera and keeping it well off-axis puts the
+ * light on the surfaces that face the player while still leaving each solid a
+ * lit side and a shaded one, which is what makes a shape read as a shape rather
+ * than as a flat sticker.
  */
 export const ZONES: ZoneDef[] = [
   {
@@ -11,10 +24,10 @@ export const ZONES: ZoneDef[] = [
     label: 'City Edge',
     fromDistance: 0,
     fog: { color: 0xbfd4e6, near: 60, far: 320 },
-    ground: 0x6c7a5e,
+    ground: 0x7e9163,
     sky: { top: 0x74a7d8, bottom: 0xdfe9f2 },
-    sun: { color: 0xfff2dc, intensity: 2.4, position: [-40, 62, 30] },
-    ambient: { color: 0x9fb6cc, intensity: 1.05 },
+    sun: { color: 0xfff2dc, intensity: 2.5, position: [-38, 58, -46] },
+    ambient: { color: 0xa8c0d6, intensity: 1.25 },
     buildingScale: 0.55,
     propDensity: 0.6,
     lightDensity: 0.3,
@@ -29,10 +42,10 @@ export const ZONES: ZoneDef[] = [
     label: 'Metro District',
     fromDistance: 700,
     fog: { color: 0xa8bccd, near: 50, far: 290 },
-    ground: 0x5c5f63,
+    ground: 0x6f7472,
     sky: { top: 0x5f92c4, bottom: 0xd2dee8 },
-    sun: { color: 0xffeccd, intensity: 2.2, position: [-30, 58, 24] },
-    ambient: { color: 0x93a9bd, intensity: 1.0 },
+    sun: { color: 0xffeccd, intensity: 2.35, position: [-34, 56, -44] },
+    ambient: { color: 0x9db3c8, intensity: 1.2 },
     buildingScale: 0.8,
     propDensity: 1.0,
     lightDensity: 0.5,
@@ -47,10 +60,10 @@ export const ZONES: ZoneDef[] = [
     label: 'Downtown',
     fromDistance: 1600,
     fog: { color: 0x8fa3bb, near: 44, far: 270 },
-    ground: 0x44485a,
+    ground: 0x565b6c,
     sky: { top: 0x40699c, bottom: 0xb9c9dc },
-    sun: { color: 0xffe3bb, intensity: 2.0, position: [-22, 54, 16] },
-    ambient: { color: 0x8397ae, intensity: 0.95 },
+    sun: { color: 0xffe3bb, intensity: 2.25, position: [-30, 54, -42] },
+    ambient: { color: 0x8ea3ba, intensity: 1.15 },
     buildingScale: 1.35,
     propDensity: 1.2,
     lightDensity: 0.8,
@@ -65,10 +78,10 @@ export const ZONES: ZoneDef[] = [
     label: 'Industrial Belt',
     fromDistance: 2500,
     fog: { color: 0x9a8f7f, near: 40, far: 240 },
-    ground: 0x655b4a,
+    ground: 0x7a6e58,
     sky: { top: 0x8a7f6d, bottom: 0xd4c6ad },
-    sun: { color: 0xffd9a0, intensity: 1.9, position: [-16, 46, 10] },
-    ambient: { color: 0x9c927f, intensity: 0.95 },
+    sun: { color: 0xffd9a0, intensity: 2.2, position: [-26, 48, -40] },
+    ambient: { color: 0xa69c88, intensity: 1.15 },
     buildingScale: 0.9,
     propDensity: 1.4,
     lightDensity: 0.6,
@@ -83,10 +96,10 @@ export const ZONES: ZoneDef[] = [
     label: 'Elevated Line',
     fromDistance: 3400,
     fog: { color: 0xa9b6c6, near: 55, far: 340 },
-    ground: 0x59616b,
+    ground: 0x6b747e,
     sky: { top: 0x3f628f, bottom: 0xc4b39c },
-    sun: { color: 0xffc98a, intensity: 2.1, position: [-52, 32, -6] },
-    ambient: { color: 0x93a2b6, intensity: 0.9 },
+    sun: { color: 0xffc98a, intensity: 2.3, position: [-44, 40, -38] },
+    ambient: { color: 0x9eadc1, intensity: 1.1 },
     buildingScale: 0.7,
     propDensity: 0.7,
     lightDensity: 0.7,
@@ -101,10 +114,10 @@ export const ZONES: ZoneDef[] = [
     label: 'Construction Zone',
     fromDistance: 4300,
     fog: { color: 0x8c8578, near: 38, far: 230 },
-    ground: 0x6e6552,
+    ground: 0x827863,
     sky: { top: 0x3d4657, bottom: 0x9c8f79 },
-    sun: { color: 0xffb877, intensity: 1.7, position: [-44, 26, -12] },
-    ambient: { color: 0x7d7b74, intensity: 0.85 },
+    sun: { color: 0xffb877, intensity: 2.0, position: [-40, 36, -36] },
+    ambient: { color: 0x8a8880, intensity: 1.05 },
     buildingScale: 0.85,
     propDensity: 1.5,
     lightDensity: 0.9,
@@ -121,8 +134,8 @@ export const ZONES: ZoneDef[] = [
     fog: { color: 0x181428, near: 30, far: 210 },
     ground: 0x1b1730,
     sky: { top: 0x0a0a18, bottom: 0x2a1740 },
-    sun: { color: 0x6f7fd8, intensity: 0.55, position: [30, 40, -40] },
-    ambient: { color: 0x3a3260, intensity: 0.7 },
+    sun: { color: 0x8c9ae8, intensity: 0.85, position: [26, 38, -40] },
+    ambient: { color: 0x4a4176, intensity: 0.85 },
     buildingScale: 1.2,
     propDensity: 1.3,
     lightDensity: 1.6,
